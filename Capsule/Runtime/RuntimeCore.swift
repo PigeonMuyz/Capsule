@@ -193,8 +193,16 @@ actor RuntimeCore {
     /// Stream container logs
     /// - Parameter id: Container ID
     /// - Returns: AsyncThrowingStream of log lines
-    func streamContainerLogs(id: String) -> AsyncThrowingStream<String, Error> {
-        return cli.streamContainerLogs(id: id)
+    nonisolated func streamContainerLogs(id: String) -> AsyncThrowingStream<String, Error> {
+        return AsyncThrowingStream { continuation in
+            Task {
+                let stream = await cli.streamContainerLogs(id: id)
+                for try await line in stream {
+                    continuation.yield(line)
+                }
+                continuation.finish()
+            }
+        }
     }
 
     // MARK: - Helper Methods
