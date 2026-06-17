@@ -17,18 +17,33 @@ class ContainerViewModel: ObservableObject {
     // MARK: - Private Properties
 
     private let runtime = RuntimeCore()
-    private let logService = LogService()
     private var updateTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
     init() {
         logger.info("ContainerViewModel initialized")
+        Task {
+            await initializeRuntime()
+        }
         startPeriodicRefresh()
     }
 
     deinit {
         updateTask?.cancel()
+    }
+
+    // MARK: - Initialization
+
+    private func initializeRuntime() async {
+        do {
+            try await runtime.bootstrap()
+            logger.info("Runtime bootstrapped successfully")
+            await refreshContainers()
+        } catch {
+            logger.error("Failed to bootstrap runtime: \(error)")
+            errorMessage = "Failed to initialize: \(error.localizedDescription)"
+        }
     }
 
     // MARK: - Container Operations
@@ -41,13 +56,6 @@ class ContainerViewModel: ObservableObject {
         do {
             logger.info("Creating container: \(spec.name)")
             let summary = try await runtime.createContainer(spec)
-
-            // Add initial log entry
-            await logService.appendLog(
-                containerID: summary.id,
-                stream: .stdout,
-                content: "Container '\(summary.name)' created"
-            )
 
             await refreshContainers()
             logger.info("Container created successfully: \(spec.name)")
@@ -64,34 +72,13 @@ class ContainerViewModel: ObservableObject {
         do {
             logger.info("Starting container: \(id)")
 
-            await logService.appendLog(
-                containerID: id,
-                stream: .stdout,
-                content: "Starting container..."
-            )
-
             try await runtime.startContainer(id: id)
-
-            await logService.appendLog(
-                containerID: id,
-                stream: .stdout,
-                content: "Container started successfully"
-            )
-
-            // Simulate some container output for MVP
-            await simulateContainerOutput(id: id)
 
             await refreshContainers()
             logger.info("Container started: \(id)")
         } catch {
             logger.error("Failed to start container: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
-
-            await logService.appendLog(
-                containerID: id,
-                stream: .stderr,
-                content: "Error: \(error.localizedDescription)"
-            )
         }
     }
 
@@ -100,31 +87,13 @@ class ContainerViewModel: ObservableObject {
         do {
             logger.info("Stopping container: \(id)")
 
-            await logService.appendLog(
-                containerID: id,
-                stream: .stdout,
-                content: "Stopping container..."
-            )
-
             try await runtime.stopContainer(id: id)
-
-            await logService.appendLog(
-                containerID: id,
-                stream: .stdout,
-                content: "Container stopped"
-            )
 
             await refreshContainers()
             logger.info("Container stopped: \(id)")
         } catch {
             logger.error("Failed to stop container: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
-
-            await logService.appendLog(
-                containerID: id,
-                stream: .stderr,
-                content: "Error: \(error.localizedDescription)"
-            )
         }
     }
 
@@ -133,7 +102,6 @@ class ContainerViewModel: ObservableObject {
         do {
             logger.info("Deleting container: \(id)")
             try await runtime.deleteContainer(id: id)
-            await logService.removeContainer(containerID: id)
             await refreshContainers()
             logger.info("Container deleted: \(id)")
         } catch {
@@ -146,23 +114,65 @@ class ContainerViewModel: ObservableObject {
 
     /// Get logs for a container
     func getLogs(containerID: String) async -> [LogLine] {
-        return await logService.getAllLogs(containerID: containerID)
+        // Try to get logs from system
+        do {
+            let logsText = try await runtime.getContainerLogs(id: containerID, tail: 100)
+            let lines = logsText.components(separatedBy: .newlines)
+
+            // Convert to LogLine objects
+            var logLines: [LogLine] = []
+            for line in lines where !line.isEmpty {
+                let logLine = LogLine(
+                    timestamp: Date(),
+                    stream: .stdout,
+                    content: line
+                )
+                logLines.append(logLine)
+            }
+            return logLines
+        } catch {
+            logger.error("Failed to get logs: \(error)")
+            return []
+        }
     }
 
     /// Stream logs for a container
     func streamLogs(containerID: String) async -> AsyncStream<LogLine> {
-        return await logService.streamLogs(containerID: containerID)
+        return AsyncStream { continuation in
+            Task {
+                do {
+                    for try await line in await runtime.streamContainerLogs(id: containerID) {
+                        let logLine = LogLine(
+                            timestamp: Date(),
+                            stream: .stdout,
+                            content: line
+                        )
+                        continuation.yield(logLine)
+                    }
+                    continuation.finish()
+                } catch {
+                    logger.error("Failed to stream logs: \(error)")
+                    continuation.finish()
+                }
+            }
+        }
     }
 
     /// Clear logs for a container
     func clearLogs(containerID: String) async {
-        await logService.clearLogs(containerID: containerID)
+        // Logs are managed by system, no need to clear
+        logger.info("Clear logs requested for container: \(containerID)")
     }
 
     // MARK: - Private Methods
 
     private func refreshContainers() async {
-        containers = await runtime.listContainers()
+        do {
+            containers = try await runtime.listContainers()
+        } catch {
+            logger.error("Failed to refresh containers: \(error)")
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func startPeriodicRefresh() {
@@ -170,48 +180,6 @@ class ContainerViewModel: ObservableObject {
             while !Task.isCancelled {
                 await refreshContainers()
                 try? await Task.sleep(for: .seconds(2))
-            }
-        }
-    }
-
-    /// Simulate container output for MVP (will be replaced with real container stdout/stderr)
-    private func simulateContainerOutput(id: String) async {
-        // Get container info
-        guard let container = containers.first(where: { $0.id == id }) else {
-            return
-        }
-
-        // Simulate some output based on the image
-        Task {
-            try? await Task.sleep(for: .milliseconds(500))
-
-            if container.image.contains("alpine") {
-                await logService.appendLog(
-                    containerID: id,
-                    stream: .stdout,
-                    content: "Alpine Linux running"
-                )
-                await logService.appendLog(
-                    containerID: id,
-                    stream: .stdout,
-                    content: "Hostname: \(container.name)"
-                )
-            } else {
-                await logService.appendLog(
-                    containerID: id,
-                    stream: .stdout,
-                    content: "Container is running"
-                )
-            }
-
-            // Simulate command execution
-            let spec = try? await runtime.getContainer(id: id)
-            if let command = spec?.lastError { // This is a hack for MVP, will be fixed
-                await logService.appendLog(
-                    containerID: id,
-                    stream: .stdout,
-                    content: "$ \(container.image)"
-                )
             }
         }
     }

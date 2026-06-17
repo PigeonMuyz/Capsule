@@ -3,27 +3,13 @@ import OSLog
 
 private let logger = Logger(subsystem: "io.github.pigeonmuyz.capsule", category: "runtime")
 
-/// Core runtime for managing containers
-/// This actor encapsulates all container lifecycle operations using Apple Containerization framework
+/// Core runtime for managing system containers
+/// Integrates with Apple container CLI to manage all system containers
 actor RuntimeCore {
     // MARK: - Properties
 
-    private var containers: [String: ManagedContainer] = [:]
-    private var isBootstrapped = false
-
-    // MARK: - Managed Container
-
-    private struct ManagedContainer {
-        let spec: ContainerSpec
-        var status: ContainerStatus
-        var startedAt: Date?
-        var stoppedAt: Date?
-        var exitCode: Int?
-        var lastError: String?
-
-        // TODO: Will hold reference to Containerization.LinuxContainer
-        // var container: LinuxContainer?
-    }
+    private let cli = ContainerCLI()
+    private var isInitialized = false
 
     // MARK: - Initialization
 
@@ -33,125 +19,113 @@ actor RuntimeCore {
 
     // MARK: - Bootstrap
 
-    /// Bootstrap the container runtime with kernel and configuration
-    /// - Parameters:
-    ///   - kernelURL: URL to the Linux kernel file
-    ///   - rosetta: Enable Rosetta for linux/amd64 support
-    func bootstrap(kernelURL: URL, rosetta: Bool = false) async throws {
-        guard !isBootstrapped else {
-            logger.warning("Runtime already bootstrapped")
+    /// Initialize the runtime (verify CLI is available)
+    func bootstrap() async throws {
+        guard !isInitialized else {
+            logger.warning("Runtime already initialized")
             return
         }
 
-        logger.info("Bootstrapping runtime with kernel at: \(kernelURL.path)")
+        logger.info("Initializing runtime")
 
-        // TODO: Initialize ContainerManager from Containerization framework
-        // let kernel = Kernel(path: kernelURL, platform: .linuxArm)
-        // let network: Network? = try? VmnetNetwork()
-        // self.manager = try await ContainerManager(
-        //     kernel: kernel,
-        //     initfsReference: "vminit:latest",
-        //     network: network,
-        //     rosetta: rosetta
-        // )
-
-        isBootstrapped = true
-        logger.info("Runtime bootstrapped successfully")
+        // Verify container CLI is available
+        do {
+            _ = try await cli.listContainers()
+            isInitialized = true
+            logger.info("Runtime initialized successfully")
+        } catch {
+            logger.error("Failed to initialize runtime: \(error)")
+            throw ContainerError.runtimeNotBootstrapped
+        }
     }
 
     // MARK: - Container Lifecycle
+
+    /// List all system containers
+    /// - Returns: Array of container summaries
+    func listContainers() async throws -> [ContainerSummary] {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        let containers = try await cli.listContainers()
+
+        return containers.map { info in
+            let status = mapState(info.state)
+            let memoryBytes = parseMemory(info.memory)
+
+            return ContainerSummary(
+                id: info.id,
+                name: extractName(from: info.id),
+                image: info.image,
+                status: status,
+                cpus: info.cpus,
+                memoryBytes: memoryBytes,
+                createdAt: Date(), // TODO: Parse from started field
+                startedAt: parseStarted(info.started),
+                stoppedAt: nil,
+                exitCode: nil,
+                lastError: nil
+            )
+        }
+    }
 
     /// Create a new container
     /// - Parameter spec: Container specification
     /// - Returns: Container summary
     func createContainer(_ spec: ContainerSpec) async throws -> ContainerSummary {
-        guard isBootstrapped else {
+        guard isInitialized else {
             throw ContainerError.runtimeNotBootstrapped
         }
 
-        // Check for duplicate names
-        if containers.values.contains(where: { $0.spec.name == spec.name }) {
-            throw ContainerError.containerAlreadyExists(spec.name)
+        logger.info("Creating container: \(spec.name)")
+
+        let memoryMB = Int(spec.memoryBytes / (1024 * 1024))
+
+        do {
+            let containerID = try await cli.createContainer(
+                name: spec.name,
+                image: spec.image,
+                cpus: spec.cpus,
+                memoryMB: memoryMB,
+                command: spec.command.isEmpty ? nil : spec.command
+            )
+
+            logger.info("Container created with ID: \(containerID)")
+
+            return ContainerSummary(
+                id: containerID,
+                name: spec.name,
+                image: spec.image,
+                status: .created,
+                cpus: spec.cpus,
+                memoryBytes: spec.memoryBytes,
+                createdAt: Date(),
+                startedAt: nil,
+                stoppedAt: nil,
+                exitCode: nil,
+                lastError: nil
+            )
+        } catch {
+            logger.error("Failed to create container: \(error)")
+            throw ContainerError.invalidConfiguration(error.localizedDescription)
         }
-
-        logger.info("Creating container: \(spec.name) (id: \(spec.id))")
-
-        // TODO: Create container using Containerization framework
-        // let container = try await manager.create(
-        //     spec.id,
-        //     reference: spec.image,
-        //     rootfsSizeInBytes: spec.rootfsSizeBytes,
-        //     readOnly: false,
-        //     networking: true
-        // ) { config in
-        //     config.cpus = spec.cpus
-        //     config.memoryInBytes = spec.memoryBytes
-        //     config.process.arguments = spec.command
-        //     config.process.workingDirectory = spec.workingDirectory
-        //
-        //     for (key, value) in spec.environment {
-        //         config.process.environment[key] = value
-        //     }
-        // }
-
-        let managed = ManagedContainer(
-            spec: spec,
-            status: .created,
-            startedAt: nil,
-            stoppedAt: nil,
-            exitCode: nil,
-            lastError: nil
-        )
-
-        containers[spec.id] = managed
-
-        logger.info("Container created: \(spec.name)")
-        return makeSummary(from: managed)
     }
 
     /// Start a container
     /// - Parameter id: Container ID
     func startContainer(id: String) async throws {
-        guard isBootstrapped else {
+        guard isInitialized else {
             throw ContainerError.runtimeNotBootstrapped
         }
 
-        guard var managed = containers[id] else {
-            throw ContainerError.containerNotFound(id)
-        }
-
-        logger.info("Starting container: \(managed.spec.name)")
-
-        managed.status = .starting
-        managed.startedAt = Date()
-        managed.exitCode = nil
-        managed.lastError = nil
-        containers[id] = managed
+        logger.info("Starting container: \(id)")
 
         do {
-            // TODO: Start container using Containerization framework
-            // try await container.create()
-            // try await container.start()
-
-            // Simulate startup
-            try await Task.sleep(for: .seconds(1))
-
-            managed.status = .running
-            containers[id] = managed
-
-            logger.info("Container started: \(managed.spec.name)")
-
-            // TODO: Monitor container exit
-            // Task {
-            //     try await container.wait()
-            //     await handleContainerExit(id: id, exitCode: 0)
-            // }
-
+            try await cli.startContainer(id: id)
+            logger.info("Container started: \(id)")
         } catch {
-            managed.status = .failed
-            managed.lastError = error.localizedDescription
-            containers[id] = managed
-            logger.error("Failed to start container \(managed.spec.name): \(error)")
+            logger.error("Failed to start container: \(error)")
             throw ContainerError.startFailed(error.localizedDescription)
         }
     }
@@ -159,37 +133,17 @@ actor RuntimeCore {
     /// Stop a container
     /// - Parameter id: Container ID
     func stopContainer(id: String) async throws {
-        guard isBootstrapped else {
+        guard isInitialized else {
             throw ContainerError.runtimeNotBootstrapped
         }
 
-        guard var managed = containers[id] else {
-            throw ContainerError.containerNotFound(id)
-        }
-
-        logger.info("Stopping container: \(managed.spec.name)")
-
-        managed.status = .stopping
-        containers[id] = managed
+        logger.info("Stopping container: \(id)")
 
         do {
-            // TODO: Stop container using Containerization framework
-            // try await container.stop()
-
-            // Simulate shutdown
-            try await Task.sleep(for: .milliseconds(500))
-
-            managed.status = .stopped
-            managed.stoppedAt = Date()
-            containers[id] = managed
-
-            logger.info("Container stopped: \(managed.spec.name)")
-
+            try await cli.stopContainer(id: id)
+            logger.info("Container stopped: \(id)")
         } catch {
-            managed.status = .failed
-            managed.lastError = error.localizedDescription
-            containers[id] = managed
-            logger.error("Failed to stop container \(managed.spec.name): \(error)")
+            logger.error("Failed to stop container: \(error)")
             throw ContainerError.stopFailed(error.localizedDescription)
         }
     }
@@ -197,73 +151,105 @@ actor RuntimeCore {
     /// Delete a container
     /// - Parameter id: Container ID
     func deleteContainer(id: String) async throws {
-        guard var managed = containers[id] else {
-            throw ContainerError.containerNotFound(id)
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
         }
 
-        logger.info("Deleting container: \(managed.spec.name)")
-
-        // Stop if running
-        if managed.status.isActive {
-            try await stopContainer(id: id)
-        }
+        logger.info("Deleting container: \(id)")
 
         do {
-            // TODO: Delete container using Containerization framework
-            // try await manager.delete(id)
-            // Clean up rootfs
-
-            containers.removeValue(forKey: id)
-            logger.info("Container deleted: \(managed.spec.name)")
-
+            try await cli.deleteContainer(id: id)
+            logger.info("Container deleted: \(id)")
         } catch {
-            logger.error("Failed to delete container \(managed.spec.name): \(error)")
+            logger.error("Failed to delete container: \(error)")
             throw ContainerError.deleteFailed(error.localizedDescription)
         }
-    }
-
-    /// List all containers
-    /// - Returns: Array of container summaries
-    func listContainers() async -> [ContainerSummary] {
-        return containers.values.map { makeSummary(from: $0) }
     }
 
     /// Get container by ID
     /// - Parameter id: Container ID
     /// - Returns: Container summary
     func getContainer(id: String) async throws -> ContainerSummary {
-        guard let managed = containers[id] else {
+        let containers = try await listContainers()
+        guard let container = containers.first(where: { $0.id == id }) else {
             throw ContainerError.containerNotFound(id)
         }
-        return makeSummary(from: managed)
+        return container
     }
 
-    // MARK: - Private Helpers
+    /// Get container logs
+    /// - Parameters:
+    ///   - id: Container ID
+    ///   - tail: Number of lines to tail (optional)
+    /// - Returns: Log content
+    func getContainerLogs(id: String, tail: Int? = nil) async throws -> String {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
 
-    private func makeSummary(from managed: ManagedContainer) -> ContainerSummary {
-        ContainerSummary(
-            id: managed.spec.id,
-            name: managed.spec.name,
-            image: managed.spec.image,
-            status: managed.status,
-            cpus: managed.spec.cpus,
-            memoryBytes: managed.spec.memoryBytes,
-            createdAt: Date(), // TODO: Track actual creation time
-            startedAt: managed.startedAt,
-            stoppedAt: managed.stoppedAt,
-            exitCode: managed.exitCode,
-            lastError: managed.lastError
-        )
+        return try await cli.getContainerLogs(id: id, tail: tail)
     }
 
-    private func handleContainerExit(id: String, exitCode: Int) {
-        guard var managed = containers[id] else { return }
+    /// Stream container logs
+    /// - Parameter id: Container ID
+    /// - Returns: AsyncThrowingStream of log lines
+    func streamContainerLogs(id: String) -> AsyncThrowingStream<String, Error> {
+        return cli.streamContainerLogs(id: id)
+    }
 
-        logger.info("Container exited: \(managed.spec.name) (exit code: \(exitCode))")
+    // MARK: - Helper Methods
 
-        managed.status = .stopped
-        managed.stoppedAt = Date()
-        managed.exitCode = exitCode
-        containers[id] = managed
+    /// Map container state string to ContainerStatus
+    private func mapState(_ state: String) -> ContainerStatus {
+        switch state.lowercased() {
+        case "running":
+            return .running
+        case "stopped", "exited":
+            return .stopped
+        case "created":
+            return .created
+        case "paused":
+            return .stopped // Map paused to stopped for now
+        default:
+            return .stopped
+        }
+    }
+
+    /// Parse memory string (e.g., "1024 MB") to bytes
+    private func parseMemory(_ memory: String) -> UInt64 {
+        let components = memory.components(separatedBy: .whitespaces)
+        guard let value = components.first, let number = Double(value) else {
+            return 0
+        }
+
+        let unit = components.count > 1 ? components[1].uppercased() : "MB"
+
+        switch unit {
+        case "KB":
+            return UInt64(number * 1024)
+        case "MB":
+            return UInt64(number * 1024 * 1024)
+        case "GB":
+            return UInt64(number * 1024 * 1024 * 1024)
+        default:
+            return UInt64(number * 1024 * 1024) // Default to MB
+        }
+    }
+
+    /// Parse started timestamp
+    private func parseStarted(_ started: String?) -> Date? {
+        guard let started = started, !started.isEmpty else {
+            return nil
+        }
+
+        let formatter = ISO8601DateFormatter()
+        return formatter.date(from: started)
+    }
+
+    /// Extract container name from ID (if ID contains name, otherwise return ID)
+    private func extractName(from id: String) -> String {
+        // Container IDs often follow pattern: name-suffix or just name
+        // For now, return the full ID as name
+        return id
     }
 }

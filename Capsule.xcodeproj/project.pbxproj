@@ -6,6 +6,13 @@
 	objectVersion = 90;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		C4BDAFBC2FE2A9EC00E5F72C /* Containerization in Frameworks */ = {isa = PBXBuildFile; productRef = AAAAAAAAAAAAAAAA00000002 /* Containerization */; };
+		C4BDAFBD2FE2A9EC00E5F72C /* ContainerizationOCI in Frameworks */ = {isa = PBXBuildFile; productRef = AAAAAAAAAAAAAAAA00000003 /* ContainerizationOCI */; };
+		C4BDAFBE2FE2A9EC00E5F72C /* ContainerizationEXT4 in Frameworks */ = {isa = PBXBuildFile; productRef = AAAAAAAAAAAAAAAA00000004 /* ContainerizationEXT4 */; };
+		C4BDAFBF2FE2A9EC00E5F72C /* ContainerizationExtras in Frameworks */ = {isa = PBXBuildFile; productRef = AAAAAAAAAAAAAAAA00000005 /* ContainerizationExtras */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		000000000000000000000120 /* Capsule.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Capsule.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -22,43 +29,13 @@
 		000000000000000130000000 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				C4BDAFBF2FE2A9EC00E5F72C /* ContainerizationExtras in Frameworks */,
+				C4BDAFBE2FE2A9EC00E5F72C /* ContainerizationEXT4 in Frameworks */,
+				C4BDAFBD2FE2A9EC00E5F72C /* ContainerizationOCI in Frameworks */,
+				C4BDAFBC2FE2A9EC00E5F72C /* Containerization in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		AAAAAAAAAAAAAAAA00000001 /* XCRemoteSwiftPackageReference "containerization" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/apple/containerization.git";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		AAAAAAAAAAAAAAAA00000002 /* Containerization */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = AAAAAAAAAAAAAAAA00000001 /* XCRemoteSwiftPackageReference "containerization" */;
-			productName = Containerization;
-		};
-		AAAAAAAAAAAAAAAA00000003 /* ContainerizationOCI */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = AAAAAAAAAAAAAAAA00000001 /* XCRemoteSwiftPackageReference "containerization" */;
-			productName = ContainerizationOCI;
-		};
-		AAAAAAAAAAAAAAAA00000004 /* ContainerizationEXT4 */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = AAAAAAAAAAAAAAAA00000001 /* XCRemoteSwiftPackageReference "containerization" */;
-			productName = ContainerizationEXT4;
-		};
-		AAAAAAAAAAAAAAAA00000005 /* ContainerizationExtras */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = AAAAAAAAAAAAAAAA00000001 /* XCRemoteSwiftPackageReference "containerization" */;
-			productName = ContainerizationExtras;
-		};
-/* End XCSwiftPackageProductDependency section */
 
 /* Begin PBXGroup section */
 		000000000000000000000001 = {
@@ -89,8 +66,6 @@
 				000000000000000140000000 /* Resources */,
 			);
 			buildRules = (
-			);
-			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
 				000000000000000000000010 /* Capsule */,
@@ -295,12 +270,12 @@
 		000000000000000111000000 /* Debug configuration for PBXNativeTarget "Capsule" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Capsule/Capsule.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CODE_SIGN_ENTITLEMENTS = Capsule/Capsule.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8JFR5LUFAJ;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -337,12 +312,12 @@
 		000000000000000112000000 /* Release configuration for PBXNativeTarget "Capsule" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Capsule/Capsule.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CODE_SIGN_ENTITLEMENTS = Capsule/Capsule.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8JFR5LUFAJ;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -396,6 +371,40 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AAAAAAAAAAAAAAAA00000001 /* XCRemoteSwiftPackageReference "containerization" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/containerization.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AAAAAAAAAAAAAAAA00000002 /* Containerization */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AAAAAAAAAAAAAAAA00000001 /* XCRemoteSwiftPackageReference "containerization" */;
+			productName = Containerization;
+		};
+		AAAAAAAAAAAAAAAA00000003 /* ContainerizationOCI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AAAAAAAAAAAAAAAA00000001 /* XCRemoteSwiftPackageReference "containerization" */;
+			productName = ContainerizationOCI;
+		};
+		AAAAAAAAAAAAAAAA00000004 /* ContainerizationEXT4 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AAAAAAAAAAAAAAAA00000001 /* XCRemoteSwiftPackageReference "containerization" */;
+			productName = ContainerizationEXT4;
+		};
+		AAAAAAAAAAAAAAAA00000005 /* ContainerizationExtras */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AAAAAAAAAAAAAAAA00000001 /* XCRemoteSwiftPackageReference "containerization" */;
+			productName = ContainerizationExtras;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 000000000000000000000000 /* Project object */;
 }
