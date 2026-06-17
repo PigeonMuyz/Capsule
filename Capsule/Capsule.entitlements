@@ -2,9 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Enable App Sandbox -->
+	<!-- Disable App Sandbox to allow system container access -->
 	<key>com.apple.security.app-sandbox</key>
-	<true/>
+	<false/>
 
 	<!-- Virtualization entitlement (required for Containerization framework) -->
 	<key>com.apple.security.virtualization</key>
@@ -14,12 +14,12 @@
 	<key>com.apple.security.network.client</key>
 	<true/>
 
-	<!-- Allow user to select directories for mounting into containers -->
-	<key>com.apple.security.files.user-selected.read-write</key>
+	<!-- Disable library validation to allow executing system binaries -->
+	<key>com.apple.security.cs.disable-library-validation</key>
 	<true/>
 
-	<!-- Store security-scoped bookmarks for mounted directories -->
-	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<!-- Allow executing unsigned code (for container CLI) -->
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
 	<true/>
 </dict>
 </plist>
