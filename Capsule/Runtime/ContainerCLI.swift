@@ -37,7 +37,7 @@ actor ContainerCLI {
     func listContainers() async throws -> [ContainerInfo] {
         logger.info("Listing containers via CLI")
 
-        let output = try await runCommand(["container", "list", "--format", "json"])
+        let output = try await runCommand(["list", "--format", "json"])
 
         guard let data = output.data(using: .utf8) else {
             throw CLIError.invalidOutput("Failed to convert output to data")
@@ -58,21 +58,21 @@ actor ContainerCLI {
     /// Start a container by ID
     func startContainer(id: String) async throws {
         logger.info("Starting container: \(id)")
-        _ = try await runCommand(["container", "start", id])
+        _ = try await runCommand(["start", id])
         logger.info("Container started: \(id)")
     }
 
     /// Stop a container by ID
     func stopContainer(id: String) async throws {
         logger.info("Stopping container: \(id)")
-        _ = try await runCommand(["container", "stop", id])
+        _ = try await runCommand(["stop", id])
         logger.info("Container stopped: \(id)")
     }
 
     /// Delete a container by ID
     func deleteContainer(id: String) async throws {
         logger.info("Deleting container: \(id)")
-        _ = try await runCommand(["container", "rm", id])
+        _ = try await runCommand(["rm", id])
         logger.info("Container deleted: \(id)")
     }
 
@@ -87,7 +87,7 @@ actor ContainerCLI {
         logger.info("Creating container: \(name) with image: \(image)")
 
         var args = [
-            "container", "create",
+            "create",
             "--name", name,
             "--cpus", "\(cpus)",
             "--memory", "\(memoryMB)MB",
@@ -110,7 +110,7 @@ actor ContainerCLI {
     func getContainerLogs(id: String, tail: Int? = nil) async throws -> String {
         logger.info("Fetching logs for container: \(id)")
 
-        var args = ["container", "logs", id]
+        var args = ["logs", id]
         if let tail = tail {
             args.append(contentsOf: ["--tail", "\(tail)"])
         }
@@ -168,7 +168,7 @@ actor ContainerCLI {
     func inspectContainer(id: String) async throws -> ContainerDetails {
         logger.info("Inspecting container: \(id)")
 
-        let output = try await runCommand(["container", "inspect", id])
+        let output = try await runCommand(["inspect", id])
 
         guard let data = output.data(using: .utf8) else {
             throw CLIError.invalidOutput("Failed to convert output to data")
