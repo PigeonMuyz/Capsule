@@ -11,25 +11,39 @@ actor ContainerCLI {
 
     struct ContainerInfo: Codable {
         let id: String
-        let image: String
-        let os: String
-        let arch: String
-        let state: String
-        let ip: String?
-        let cpus: Int
-        let memory: String
-        let started: String?
+        let configuration: Configuration
+        let status: Status
 
-        enum CodingKeys: String, CodingKey {
-            case id = "ID"
-            case image = "IMAGE"
-            case os = "OS"
-            case arch = "ARCH"
-            case state = "STATE"
-            case ip = "IP"
-            case cpus = "CPUS"
-            case memory = "MEMORY"
-            case started = "STARTED"
+        struct Configuration: Codable {
+            let id: String
+            let image: Image
+            let platform: Platform
+            let resources: Resources
+            let creationDate: String?
+
+            struct Image: Codable {
+                let reference: String
+            }
+
+            struct Platform: Codable {
+                let architecture: String
+                let os: String
+            }
+
+            struct Resources: Codable {
+                let cpus: Int
+                let memoryInBytes: Int
+            }
+        }
+
+        struct Status: Codable {
+            let state: String
+            let startedDate: String?
+            let networks: [Network]?
+
+            struct Network: Codable {
+                let ipv4Address: String?
+            }
         }
     }
 

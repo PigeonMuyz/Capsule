@@ -51,18 +51,18 @@ actor RuntimeCore {
         let containers = try await cli.listContainers()
 
         return containers.map { info in
-            let status = mapState(info.state)
-            let memoryBytes = parseMemory(info.memory)
+            let status = mapState(info.status.state)
+            let memoryBytes = UInt64(info.configuration.resources.memoryInBytes)
 
             return ContainerSummary(
                 id: info.id,
-                name: extractName(from: info.id),
-                image: info.image,
+                name: info.configuration.id, // Use configuration.id as name
+                image: info.configuration.image.reference,
                 status: status,
-                cpus: info.cpus,
+                cpus: info.configuration.resources.cpus,
                 memoryBytes: memoryBytes,
-                createdAt: Date(), // TODO: Parse from started field
-                startedAt: parseStarted(info.started),
+                createdAt: parseDate(info.configuration.creationDate),
+                startedAt: parseDate(info.status.startedDate),
                 stoppedAt: nil,
                 exitCode: nil,
                 lastError: nil
@@ -223,41 +223,13 @@ actor RuntimeCore {
         }
     }
 
-    /// Parse memory string (e.g., "1024 MB") to bytes
-    private func parseMemory(_ memory: String) -> UInt64 {
-        let components = memory.components(separatedBy: .whitespaces)
-        guard let value = components.first, let number = Double(value) else {
-            return 0
-        }
-
-        let unit = components.count > 1 ? components[1].uppercased() : "MB"
-
-        switch unit {
-        case "KB":
-            return UInt64(number * 1024)
-        case "MB":
-            return UInt64(number * 1024 * 1024)
-        case "GB":
-            return UInt64(number * 1024 * 1024 * 1024)
-        default:
-            return UInt64(number * 1024 * 1024) // Default to MB
-        }
-    }
-
-    /// Parse started timestamp
-    private func parseStarted(_ started: String?) -> Date? {
-        guard let started = started, !started.isEmpty else {
-            return nil
+    /// Parse ISO8601 date string
+    private func parseDate(_ dateString: String?) -> Date {
+        guard let dateString = dateString, !dateString.isEmpty else {
+            return Date()
         }
 
         let formatter = ISO8601DateFormatter()
-        return formatter.date(from: started)
-    }
-
-    /// Extract container name from ID (if ID contains name, otherwise return ID)
-    private func extractName(from id: String) -> String {
-        // Container IDs often follow pattern: name-suffix or just name
-        // For now, return the full ID as name
-        return id
+        return formatter.date(from: dateString) ?? Date()
     }
 }
