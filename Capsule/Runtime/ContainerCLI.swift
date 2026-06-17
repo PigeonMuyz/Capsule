@@ -192,7 +192,10 @@ actor ContainerCLI {
 
             // Use /bin/zsh to execute container command with full path
             process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-            process.arguments = ["-c", "/usr/local/bin/container " + arguments.map { "\"\($0)\"" }.joined(separator: " ")]
+
+            // Build command string without extra quotes
+            let commandString = "/usr/local/bin/container " + arguments.joined(separator: " ")
+            process.arguments = ["-c", commandString]
 
             let outputPipe = Pipe()
             let errorPipe = Pipe()
