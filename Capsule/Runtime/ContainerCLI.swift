@@ -51,7 +51,7 @@ actor ContainerCLI {
     func listContainers() async throws -> [ContainerInfo] {
         logger.info("Listing containers via CLI")
 
-        let output = try await runCommand(["list", "--format", "json"])
+        let output = try await runCommand(["list", "--all", "--format", "json"])
 
         guard let data = output.data(using: .utf8) else {
             throw CLIError.invalidOutput("Failed to convert output to data")
