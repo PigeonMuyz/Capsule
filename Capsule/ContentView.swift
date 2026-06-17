@@ -59,11 +59,11 @@ struct ContentView: View {
             case "containers":
                 ContainersListView(viewModel: viewModel)
             case "images":
-                ImagesPlaceholderView()
+                ImagesView(viewModel: viewModel)
             case "volumes":
-                VolumesPlaceholderView()
+                VolumesView()
             case "networks":
-                NetworksPlaceholderView()
+                NetworksView()
             case "settings":
                 SettingsPlaceholderView()
             default:
@@ -75,61 +75,7 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Placeholder Views
-
-struct ImagesPlaceholderView: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "photo.stack")
-                .font(.system(size: 64))
-                .foregroundStyle(.secondary)
-
-            Text("Images")
-                .font(.title2)
-                .fontWeight(.semibold)
-
-            Text("Image management coming soon")
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-struct VolumesPlaceholderView: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "externaldrive")
-                .font(.system(size: 64))
-                .foregroundStyle(.secondary)
-
-            Text("Volumes")
-                .font(.title2)
-                .fontWeight(.semibold)
-
-            Text("Volume management coming soon")
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-struct NetworksPlaceholderView: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "network")
-                .font(.system(size: 64))
-                .foregroundStyle(.secondary)
-
-            Text("Networks")
-                .font(.title2)
-                .fontWeight(.semibold)
-
-            Text("Network management coming soon")
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
+// MARK: - Settings Placeholder
 
 struct SettingsPlaceholderView: View {
     var body: some View {

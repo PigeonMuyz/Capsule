@@ -145,7 +145,7 @@ struct ContainerLogsView: View {
     }
 }
 
-/// Container detail view with tabs
+/// Container detail view with multiple tabs
 struct ContainerDetailView: View {
     let container: ContainerSummary
     @ObservedObject var viewModel: ContainerViewModel
@@ -156,30 +156,18 @@ struct ContainerDetailView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Container header
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(container.name)
-                            .font(.title2)
-                            .fontWeight(.bold)
-
-                        Text(container.image)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    statusBadge(for: container.status)
-                }
-                .padding()
+                // Container header with actions
+                containerHeader
 
                 Divider()
 
-                // Tabs
+                // Tab picker
                 Picker("View", selection: $selectedTab) {
-                    Text("Overview").tag(0)
+                    Text("Info").tag(0)
                     Text("Logs").tag(1)
+                    Text("Terminal").tag(2)
+                    Text("Files").tag(3)
+                    Text("Stats").tag(4)
                 }
                 .pickerStyle(.segmented)
                 .padding()
@@ -195,6 +183,24 @@ struct ContainerDetailView: View {
                         viewModel: viewModel
                     )
                     .tag(1)
+
+                    ContainerTerminalView(
+                        containerID: container.id,
+                        containerName: container.name
+                    )
+                    .tag(2)
+
+                    ContainerFilesView(
+                        containerID: container.id,
+                        containerName: container.name
+                    )
+                    .tag(3)
+
+                    ContainerStatsView(
+                        containerID: container.id,
+                        containerName: container.name
+                    )
+                    .tag(4)
                 }
                 .tabViewStyle(.automatic)
             }
@@ -206,8 +212,70 @@ struct ContainerDetailView: View {
                     }
                 }
             }
-            .frame(width: 700, height: 500)
+            .frame(width: 800, height: 600)
         }
+    }
+
+    // MARK: - Container Header
+
+    private var containerHeader: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(container.name)
+                    .font(.title2)
+                    .fontWeight(.bold)
+
+                Text(container.image)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            // Quick actions
+            HStack(spacing: 8) {
+                if container.status.canStart {
+                    Button(action: {
+                        Task {
+                            await viewModel.startContainer(id: container.id)
+                        }
+                    }) {
+                        Label("Start", systemImage: "play.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
+                }
+
+                if container.status.canStop {
+                    Button(action: {
+                        Task {
+                            await viewModel.stopContainer(id: container.id)
+                        }
+                    }) {
+                        Label("Stop", systemImage: "stop.fill")
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Menu {
+                    Button(action: {
+                        Task {
+                            await viewModel.deleteContainer(id: container.id)
+                            dismiss()
+                        }
+                    }) {
+                        Label("Delete", systemImage: "trash")
+                    }
+                    .disabled(container.status.isActive)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .buttonStyle(.bordered)
+            }
+
+            statusBadge(for: container.status)
+        }
+        .padding()
     }
 
     private var overviewTab: some View {
