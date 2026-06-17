@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import Combine
 import OSLog
 
 private let logger = Logger(subsystem: "io.github.pigeonmuyz.capsule", category: "viewmodel")
