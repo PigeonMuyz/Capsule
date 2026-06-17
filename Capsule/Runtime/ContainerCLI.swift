@@ -125,8 +125,8 @@ actor ContainerCLI {
             Task {
                 do {
                     let process = Process()
-                    process.executableURL = URL(fileURLWithPath: "/usr/local/bin/container")
-                    process.arguments = ["logs", "--follow", id]
+                    process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+                    process.arguments = ["-c", "container logs --follow \(id)"]
 
                     let pipe = Pipe()
                     process.standardOutput = pipe
@@ -189,8 +189,11 @@ actor ContainerCLI {
     private func runCommand(_ arguments: [String]) async throws -> String {
         return try await withCheckedThrowingContinuation { continuation in
             let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/local/bin/container")
-            process.arguments = arguments
+
+            // Use /bin/zsh to execute container command
+            // This works around sandboxing issues
+            process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+            process.arguments = ["-c", "container " + arguments.map { "\"\($0)\"" }.joined(separator: " ")]
 
             let outputPipe = Pipe()
             let errorPipe = Pipe()
