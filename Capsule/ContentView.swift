@@ -28,7 +28,7 @@ struct ContentView: View {
         NavigationSplitView {
             // Sidebar
             List(selection: $selectedTab) {
-                Section("Resources") {
+                Section("Docker") {
                     NavigationLink(value: "containers") {
                         Label("Containers", systemImage: "cube.fill")
                     }
@@ -36,9 +36,17 @@ struct ContentView: View {
                     NavigationLink(value: "images") {
                         Label("Images", systemImage: "photo.stack.fill")
                     }
+
+                    NavigationLink(value: "volumes") {
+                        Label("Volumes", systemImage: "externaldrive.fill")
+                    }
+
+                    NavigationLink(value: "networks") {
+                        Label("Networks", systemImage: "network")
+                    }
                 }
 
-                Section("Settings") {
+                Section("General") {
                     NavigationLink(value: "settings") {
                         Label("Settings", systemImage: "gearshape.fill")
                     }
@@ -52,6 +60,10 @@ struct ContentView: View {
                 ContainersListView(viewModel: viewModel)
             case "images":
                 ImagesPlaceholderView()
+            case "volumes":
+                VolumesPlaceholderView()
+            case "networks":
+                NetworksPlaceholderView()
             case "settings":
                 SettingsPlaceholderView()
             default:
@@ -63,7 +75,8 @@ struct ContentView: View {
     }
 }
 
-// Placeholder views for future implementation
+// MARK: - Placeholder Views
+
 struct ImagesPlaceholderView: View {
     var body: some View {
         VStack(spacing: 16) {
@@ -75,7 +88,43 @@ struct ImagesPlaceholderView: View {
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text("Image management coming in Phase 4")
+            Text("Image management coming soon")
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+struct VolumesPlaceholderView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "externaldrive")
+                .font(.system(size: 64))
+                .foregroundStyle(.secondary)
+
+            Text("Volumes")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text("Volume management coming soon")
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+struct NetworksPlaceholderView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "network")
+                .font(.system(size: 64))
+                .foregroundStyle(.secondary)
+
+            Text("Networks")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text("Network management coming soon")
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
