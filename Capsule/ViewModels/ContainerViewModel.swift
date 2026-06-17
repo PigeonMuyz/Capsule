@@ -16,7 +16,7 @@ class ContainerViewModel: ObservableObject {
 
     // MARK: - Private Properties
 
-    private let runtime = RuntimeCore()
+    let runtime = RuntimeCore()
     private var updateTask: Task<Void, Never>?
 
     // MARK: - Initialization

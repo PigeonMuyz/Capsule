@@ -3,9 +3,10 @@ import SwiftUI
 /// Images management view
 struct ImagesView: View {
     @ObservedObject var viewModel: ContainerViewModel
-    @State private var images: [ImageInfo] = []
+    @State private var images: [ContainerCLI.ImageInfo] = []
     @State private var showingPullSheet = false
     @State private var isLoading = false
+    @State private var errorMessage: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -13,6 +14,22 @@ struct ImagesView: View {
             toolbar
 
             Divider()
+
+            // Error message
+            if let error = errorMessage {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Dismiss") {
+                        errorMessage = nil
+                    }
+                }
+                .padding()
+                .background(Color.orange.opacity(0.1))
+            }
 
             // Images list
             if isLoading {
@@ -26,17 +43,21 @@ struct ImagesView: View {
         }
         .sheet(isPresented: $showingPullSheet) {
             PullImageView(onPull: { reference in
-                pullImage(reference)
+                Task {
+                    await pullImage(reference)
+                }
             })
         }
         .onAppear {
-            loadImages()
+            Task {
+                await loadImages()
+            }
         }
     }
 
     // MARK: - Toolbar
 
-    private var toolbar: some View {
+    private func toolbar: some View {
         HStack {
             Text("Images")
                 .font(.title)
@@ -44,7 +65,11 @@ struct ImagesView: View {
 
             Spacer()
 
-            Button(action: { loadImages() }) {
+            Button(action: {
+                Task {
+                    await loadImages()
+                }
+            }) {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }
             .buttonStyle(.bordered)
@@ -94,7 +119,7 @@ struct ImagesView: View {
         }
     }
 
-    private func imageCard(_ image: ImageInfo) -> some View {
+    private func imageCard(_ image: ContainerCLI.ImageInfo) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "photo.fill")
                 .font(.title2)
@@ -105,15 +130,13 @@ struct ImagesView: View {
                 Text(image.repository)
                     .font(.headline)
 
-                if let tag = image.tag {
-                    Text(tag)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text(image.tag)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 HStack(spacing: 16) {
                     Label(formatSize(image.size), systemImage: "externaldrive")
-                    Label(image.id.prefix(12), systemImage: "number")
+                    Label(String(image.id.prefix(12)), systemImage: "number")
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -147,64 +170,50 @@ struct ImagesView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-        }
+        )
     }
 
     // MARK: - Actions
 
-    private func loadImages() {
+    private func loadImages() async {
         isLoading = true
-        // Simulate loading
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            images = simulateImageList()
+        errorMessage = nil
+
+        do {
+            images = try await viewModel.runtime.listImages()
+        } catch {
+            errorMessage = "Failed to load images: \(error.localizedDescription)"
+        }
+
+        isLoading = false
+    }
+
+    private func pullImage(_ reference: String) async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            try await viewModel.runtime.pullImage(reference: reference)
+            await loadImages()
+        } catch {
+            errorMessage = "Failed to pull image: \(error.localizedDescription)"
             isLoading = false
         }
     }
 
-    private func pullImage(_ reference: String) {
-        // Simulate pull
-        let newImage = ImageInfo(
-            id: UUID().uuidString,
-            repository: reference,
-            tag: "latest",
-            size: Int64.random(in: 10_000_000...500_000_000),
-            created: Date()
-        )
-        images.append(newImage)
+    private func deleteImage(_ image: ContainerCLI.ImageInfo) {
+        Task {
+            do {
+                try await viewModel.runtime.deleteImage(id: image.id)
+                await loadImages()
+            } catch {
+                errorMessage = "Failed to delete image: \(error.localizedDescription)"
+            }
+        }
     }
 
-    private func deleteImage(_ image: ImageInfo) {
-        images.removeAll { $0.id == image.id }
-    }
-
-    private func createContainerFromImage(_ image: ImageInfo) {
+    private func createContainerFromImage(_ image: ContainerCLI.ImageInfo) {
         // TODO: Open create container sheet with pre-filled image
-    }
-
-    private func simulateImageList() -> [ImageInfo] {
-        return [
-            ImageInfo(
-                id: "sha256:abc123",
-                repository: "docker.io/library/alpine",
-                tag: "latest",
-                size: 7_500_000,
-                created: Date().addingTimeInterval(-86400 * 7)
-            ),
-            ImageInfo(
-                id: "sha256:def456",
-                repository: "docker.io/library/postgres",
-                tag: "14-alpine",
-                size: 245_000_000,
-                created: Date().addingTimeInterval(-86400 * 3)
-            ),
-            ImageInfo(
-                id: "sha256:ghi789",
-                repository: "docker.io/library/redis",
-                tag: "7-alpine",
-                size: 32_000_000,
-                created: Date().addingTimeInterval(-86400 * 1)
-            ),
-        ]
     }
 
     private func formatSize(_ bytes: Int64) -> String {
@@ -214,17 +223,10 @@ struct ImagesView: View {
     }
 }
 
-// MARK: - Image Info Model
-
-struct ImageInfo: Identifiable {
-    let id: String
-    let repository: String
-    let tag: String?
-    let size: Int64
-    let created: Date
+#Preview {
+    ImagesView(viewModel: ContainerViewModel())
+        .frame(width: 900, height: 600)
 }
-
-// MARK: - Pull Image View
 
 struct PullImageView: View {
     @Environment(\.dismiss) private var dismiss

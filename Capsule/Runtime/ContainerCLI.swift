@@ -197,6 +197,160 @@ actor ContainerCLI {
         }
     }
 
+    // MARK: - Images
+
+    struct ImageInfo: Codable {
+        let id: String
+        let repository: String
+        let tag: String
+        let digest: String
+        let size: Int64
+        let created: String
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case repository
+            case tag
+            case digest
+            case size
+            case created
+        }
+    }
+
+    /// List all images
+    func listImages() async throws -> [ImageInfo] {
+        logger.info("Listing images via CLI")
+
+        let output = try await runCommand(["image", "list", "--format", "json"])
+
+        guard let data = output.data(using: .utf8) else {
+            throw CLIError.invalidOutput("Failed to convert output to data")
+        }
+
+        do {
+            let images = try JSONDecoder().decode([ImageInfo].self, from: data)
+            logger.info("Found \(images.count) images")
+            return images
+        } catch {
+            logger.error("Failed to parse image list: \(error)")
+            throw CLIError.parseError(error.localizedDescription)
+        }
+    }
+
+    /// Pull an image
+    func pullImage(reference: String) async throws {
+        logger.info("Pulling image: \(reference)")
+        _ = try await runCommand(["image", "pull", reference])
+        logger.info("Image pulled: \(reference)")
+    }
+
+    /// Delete an image
+    func deleteImage(id: String) async throws {
+        logger.info("Deleting image: \(id)")
+        _ = try await runCommand(["image", "rm", id])
+        logger.info("Image deleted: \(id)")
+    }
+
+    // MARK: - Volumes
+
+    struct VolumeInfo: Codable {
+        let name: String
+        let mountPoint: String
+        let driver: String
+        let createdAt: String?
+
+        enum CodingKeys: String, CodingKey {
+            case name
+            case mountPoint = "mount_point"
+            case driver
+            case createdAt = "created_at"
+        }
+    }
+
+    /// List all volumes
+    func listVolumes() async throws -> [VolumeInfo] {
+        logger.info("Listing volumes via CLI")
+
+        let output = try await runCommand(["volume", "list", "--format", "json"])
+
+        guard let data = output.data(using: .utf8) else {
+            throw CLIError.invalidOutput("Failed to convert output to data")
+        }
+
+        do {
+            let volumes = try JSONDecoder().decode([VolumeInfo].self, from: data)
+            logger.info("Found \(volumes.count) volumes")
+            return volumes
+        } catch {
+            logger.error("Failed to parse volume list: \(error)")
+            throw CLIError.parseError(error.localizedDescription)
+        }
+    }
+
+    /// Create a volume
+    func createVolume(name: String) async throws {
+        logger.info("Creating volume: \(name)")
+        _ = try await runCommand(["volume", "create", name])
+        logger.info("Volume created: \(name)")
+    }
+
+    /// Delete a volume
+    func deleteVolume(name: String) async throws {
+        logger.info("Deleting volume: \(name)")
+        _ = try await runCommand(["volume", "rm", name])
+        logger.info("Volume deleted: \(name)")
+    }
+
+    // MARK: - Networks
+
+    struct NetworkInfo: Codable {
+        let name: String
+        let driver: String
+        let subnet: String?
+        let id: String
+
+        enum CodingKeys: String, CodingKey {
+            case name
+            case driver
+            case subnet
+            case id
+        }
+    }
+
+    /// List all networks
+    func listNetworks() async throws -> [NetworkInfo] {
+        logger.info("Listing networks via CLI")
+
+        let output = try await runCommand(["network", "list", "--format", "json"])
+
+        guard let data = output.data(using: .utf8) else {
+            throw CLIError.invalidOutput("Failed to convert output to data")
+        }
+
+        do {
+            let networks = try JSONDecoder().decode([NetworkInfo].self, from: data)
+            logger.info("Found \(networks.count) networks")
+            return networks
+        } catch {
+            logger.error("Failed to parse network list: \(error)")
+            throw CLIError.parseError(error.localizedDescription)
+        }
+    }
+
+    /// Create a network
+    func createNetwork(name: String, driver: String = "bridge") async throws {
+        logger.info("Creating network: \(name)")
+        _ = try await runCommand(["network", "create", "--driver", driver, name])
+        logger.info("Network created: \(name)")
+    }
+
+    /// Delete a network
+    func deleteNetwork(name: String) async throws {
+        logger.info("Deleting network: \(name)")
+        _ = try await runCommand(["network", "rm", name])
+        logger.info("Network deleted: \(name)")
+    }
+
     // MARK: - Helper Methods
 
     /// Execute a container command and return output

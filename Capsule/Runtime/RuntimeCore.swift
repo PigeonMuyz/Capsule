@@ -205,6 +205,93 @@ actor RuntimeCore {
         }
     }
 
+    // MARK: - Images
+
+    /// List all images
+    func listImages() async throws -> [ContainerCLI.ImageInfo] {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        return try await cli.listImages()
+    }
+
+    /// Pull an image
+    func pullImage(reference: String) async throws {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        try await cli.pullImage(reference: reference)
+    }
+
+    /// Delete an image
+    func deleteImage(id: String) async throws {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        try await cli.deleteImage(id: id)
+    }
+
+    // MARK: - Volumes
+
+    /// List all volumes
+    func listVolumes() async throws -> [ContainerCLI.VolumeInfo] {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        return try await cli.listVolumes()
+    }
+
+    /// Create a volume
+    func createVolume(name: String) async throws {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        try await cli.createVolume(name: name)
+    }
+
+    /// Delete a volume
+    func deleteVolume(name: String) async throws {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        try await cli.deleteVolume(name: name)
+    }
+
+    // MARK: - Networks
+
+    /// List all networks
+    func listNetworks() async throws -> [ContainerCLI.NetworkInfo] {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        return try await cli.listNetworks()
+    }
+
+    /// Create a network
+    func createNetwork(name: String, driver: String = "bridge") async throws {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        try await cli.createNetwork(name: name, driver: driver)
+    }
+
+    /// Delete a network
+    func deleteNetwork(name: String) async throws {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        try await cli.deleteNetwork(name: name)
+    }
+
     // MARK: - Helper Methods
 
     /// Map container state string to ContainerStatus

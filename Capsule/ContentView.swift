@@ -61,9 +61,9 @@ struct ContentView: View {
             case "images":
                 ImagesView(viewModel: viewModel)
             case "volumes":
-                VolumesView()
+                VolumesView(viewModel: viewModel)
             case "networks":
-                NetworksView()
+                NetworksView(viewModel: viewModel)
             case "settings":
                 SettingsPlaceholderView()
             default:

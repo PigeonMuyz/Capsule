@@ -2,8 +2,10 @@ import SwiftUI
 
 /// Volumes management view
 struct VolumesView: View {
-    @State private var volumes: [VolumeInfo] = []
+    @ObservedObject var viewModel: ContainerViewModel
+    @State private var volumes: [ContainerCLI.VolumeInfo] = []
     @State private var isLoading = false
+    @State private var errorMessage: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -11,6 +13,22 @@ struct VolumesView: View {
             toolbar
 
             Divider()
+
+            // Error message
+            if let error = errorMessage {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Dismiss") {
+                        errorMessage = nil
+                    }
+                }
+                .padding()
+                .background(Color.orange.opacity(0.1))
+            }
 
             // Volumes list
             if isLoading {
@@ -23,7 +41,9 @@ struct VolumesView: View {
             }
         }
         .onAppear {
-            loadVolumes()
+            Task {
+                await loadVolumes()
+            }
         }
     }
 
@@ -37,7 +57,11 @@ struct VolumesView: View {
 
             Spacer()
 
-            Button(action: { loadVolumes() }) {
+            Button(action: {
+                Task {
+                    await loadVolumes()
+                }
+            }) {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }
             .buttonStyle(.bordered)
@@ -87,7 +111,7 @@ struct VolumesView: View {
         }
     }
 
-    private func volumeCard(_ volume: VolumeInfo) -> some View {
+    private func volumeCard(_ volume: ContainerCLI.VolumeInfo) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "externaldrive.fill")
                 .font(.title2)
@@ -102,14 +126,9 @@ struct VolumesView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                HStack(spacing: 16) {
-                    Label(formatSize(volume.size), systemImage: "externaldrive")
-                    if let containers = volume.usedByContainers, !containers.isEmpty {
-                        Label("\(containers.count) containers", systemImage: "cube")
-                    }
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                Label(volume.driver, systemImage: "gearshape")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
 
             Spacer()
@@ -128,7 +147,6 @@ struct VolumesView: View {
                 }) {
                     Label("Delete", systemImage: "trash")
                 }
-                .disabled(volume.usedByContainers?.isEmpty == false)
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.title2)
@@ -146,61 +164,40 @@ struct VolumesView: View {
 
     // MARK: - Actions
 
-    private func loadVolumes() {
+    private func loadVolumes() async {
         isLoading = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            volumes = simulateVolumeList()
-            isLoading = false
+        errorMessage = nil
+
+        do {
+            volumes = try await viewModel.runtime.listVolumes()
+        } catch {
+            errorMessage = "Failed to load volumes: \(error.localizedDescription)"
         }
+
+        isLoading = false
     }
 
     private func createVolume() {
         // TODO: Show create volume sheet
     }
 
-    private func deleteVolume(_ volume: VolumeInfo) {
-        volumes.removeAll { $0.id == volume.id }
+    private func deleteVolume(_ volume: ContainerCLI.VolumeInfo) {
+        Task {
+            do {
+                try await viewModel.runtime.deleteVolume(name: volume.name)
+                await loadVolumes()
+            } catch {
+                errorMessage = "Failed to delete volume: \(error.localizedDescription)"
+            }
+        }
     }
 
-    private func inspectVolume(_ volume: VolumeInfo) {
+    private func inspectVolume(_ volume: ContainerCLI.VolumeInfo) {
         // TODO: Show volume details
     }
-
-    private func simulateVolumeList() -> [VolumeInfo] {
-        return [
-            VolumeInfo(
-                name: "postgres-data",
-                mountPoint: "/var/lib/postgresql/data",
-                size: 1_200_000_000,
-                usedByContainers: ["postgres-bookshelf"]
-            ),
-            VolumeInfo(
-                name: "redis-data",
-                mountPoint: "/data",
-                size: 45_000_000,
-                usedByContainers: ["redis-bookshelf"]
-            ),
-        ]
-    }
-
-    private func formatSize(_ bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: bytes)
-    }
-}
-
-// MARK: - Volume Info Model
-
-struct VolumeInfo: Identifiable {
-    let id = UUID()
-    let name: String
-    let mountPoint: String
-    let size: Int64
-    let usedByContainers: [String]?
 }
 
 #Preview {
-    VolumesView()
+    VolumesView(viewModel: ContainerViewModel())
         .frame(width: 900, height: 600)
 }

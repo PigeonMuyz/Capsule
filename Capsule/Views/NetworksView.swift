@@ -2,8 +2,10 @@ import SwiftUI
 
 /// Networks management view
 struct NetworksView: View {
-    @State private var networks: [NetworkInfo] = []
+    @ObservedObject var viewModel: ContainerViewModel
+    @State private var networks: [ContainerCLI.NetworkInfo] = []
     @State private var isLoading = false
+    @State private var errorMessage: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -11,6 +13,22 @@ struct NetworksView: View {
             toolbar
 
             Divider()
+
+            // Error message
+            if let error = errorMessage {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Dismiss") {
+                        errorMessage = nil
+                    }
+                }
+                .padding()
+                .background(Color.orange.opacity(0.1))
+            }
 
             // Networks list
             if isLoading {
@@ -23,7 +41,9 @@ struct NetworksView: View {
             }
         }
         .onAppear {
-            loadNetworks()
+            Task {
+                await loadNetworks()
+            }
         }
     }
 
@@ -37,7 +57,11 @@ struct NetworksView: View {
 
             Spacer()
 
-            Button(action: { loadNetworks() }) {
+            Button(action: {
+                Task {
+                    await loadNetworks()
+                }
+            }) {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }
             .buttonStyle(.bordered)
@@ -87,7 +111,7 @@ struct NetworksView: View {
         }
     }
 
-    private func networkCard(_ network: NetworkInfo) -> some View {
+    private func networkCard(_ network: ContainerCLI.NetworkInfo) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "network")
                 .font(.title2)
@@ -105,14 +129,9 @@ struct NetworksView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                HStack(spacing: 16) {
-                    Label(network.driver, systemImage: "gearshape")
-                    if let containers = network.connectedContainers, !containers.isEmpty {
-                        Label("\(containers.count) containers", systemImage: "cube")
-                    }
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                Label(network.driver, systemImage: "gearshape")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
 
             Spacer()
@@ -131,7 +150,7 @@ struct NetworksView: View {
                 }) {
                     Label("Delete", systemImage: "trash")
                 }
-                .disabled(network.connectedContainers?.isEmpty == false || network.isDefault)
+                .disabled(network.name == "default")
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.title2)
@@ -149,51 +168,40 @@ struct NetworksView: View {
 
     // MARK: - Actions
 
-    private func loadNetworks() {
+    private func loadNetworks() async {
         isLoading = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            networks = simulateNetworkList()
-            isLoading = false
+        errorMessage = nil
+
+        do {
+            networks = try await viewModel.runtime.listNetworks()
+        } catch {
+            errorMessage = "Failed to load networks: \(error.localizedDescription)"
         }
+
+        isLoading = false
     }
 
     private func createNetwork() {
         // TODO: Show create network sheet
     }
 
-    private func deleteNetwork(_ network: NetworkInfo) {
-        networks.removeAll { $0.id == network.id }
+    private func deleteNetwork(_ network: ContainerCLI.NetworkInfo) {
+        Task {
+            do {
+                try await viewModel.runtime.deleteNetwork(name: network.name)
+                await loadNetworks()
+            } catch {
+                errorMessage = "Failed to delete network: \(error.localizedDescription)"
+            }
+        }
     }
 
-    private func inspectNetwork(_ network: NetworkInfo) {
+    private func inspectNetwork(_ network: ContainerCLI.NetworkInfo) {
         // TODO: Show network details
     }
-
-    private func simulateNetworkList() -> [NetworkInfo] {
-        return [
-            NetworkInfo(
-                name: "default",
-                driver: "bridge",
-                subnet: "192.168.64.0/24",
-                connectedContainers: ["postgres-bookshelf", "redis-bookshelf"],
-                isDefault: true
-            ),
-        ]
-    }
-}
-
-// MARK: - Network Info Model
-
-struct NetworkInfo: Identifiable {
-    let id = UUID()
-    let name: String
-    let driver: String
-    let subnet: String?
-    let connectedContainers: [String]?
-    let isDefault: Bool
 }
 
 #Preview {
-    NetworksView()
+    NetworksView(viewModel: ContainerViewModel())
         .frame(width: 900, height: 600)
 }
