@@ -125,7 +125,7 @@ actor ContainerCLI {
             Task {
                 do {
                     let process = Process()
-                    process.executableURL = URL(fileURLWithPath: "/usr/bin/container")
+                    process.executableURL = URL(fileURLWithPath: "/usr/local/bin/container")
                     process.arguments = ["logs", "--follow", id]
 
                     let pipe = Pipe()
@@ -189,7 +189,7 @@ actor ContainerCLI {
     private func runCommand(_ arguments: [String]) async throws -> String {
         return try await withCheckedThrowingContinuation { continuation in
             let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/container")
+            process.executableURL = URL(fileURLWithPath: "/usr/local/bin/container")
             process.arguments = arguments
 
             let outputPipe = Pipe()
