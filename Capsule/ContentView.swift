@@ -1,25 +1,106 @@
 import SwiftUI
-import Playgrounds
 
-@main struct MyApp: App {
+@main
+struct CapsuleApp: App {
+    @StateObject private var viewModel = ContainerViewModel()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(viewModel: viewModel)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                Button("New Container...") {
+                    // Trigger new container sheet
+                }
+                .keyboardShortcut("n", modifiers: .command)
+            }
         }
     }
 }
 
 struct ContentView: View {
+    @ObservedObject var viewModel: ContainerViewModel
+    @State private var selectedTab = "containers"
+
     var body: some View {
-        Text("Hello, world!")
-            .padding()
+        NavigationSplitView {
+            // Sidebar
+            List(selection: $selectedTab) {
+                Section("Resources") {
+                    NavigationLink(value: "containers") {
+                        Label("Containers", systemImage: "cube.fill")
+                    }
+
+                    NavigationLink(value: "images") {
+                        Label("Images", systemImage: "photo.stack.fill")
+                    }
+                }
+
+                Section("Settings") {
+                    NavigationLink(value: "settings") {
+                        Label("Settings", systemImage: "gearshape.fill")
+                    }
+                }
+            }
+            .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 300)
+        } detail: {
+            // Main content
+            switch selectedTab {
+            case "containers":
+                ContainersListView(viewModel: viewModel)
+            case "images":
+                ImagesPlaceholderView()
+            case "settings":
+                SettingsPlaceholderView()
+            default:
+                Text("Select a section")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("Capsule")
+    }
+}
+
+// Placeholder views for future implementation
+struct ImagesPlaceholderView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "photo.stack")
+                .font(.system(size: 64))
+                .foregroundStyle(.secondary)
+
+            Text("Images")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text("Image management coming in Phase 4")
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+struct SettingsPlaceholderView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "gearshape")
+                .font(.system(size: 64))
+                .foregroundStyle(.secondary)
+
+            Text("Settings")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text("Settings coming soon")
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
 #Preview {
-    ContentView()
-}
-
-#Playground {
-    _ = 1 + 2
+    ContentView(viewModel: ContainerViewModel())
+        .frame(width: 1000, height: 700)
 }

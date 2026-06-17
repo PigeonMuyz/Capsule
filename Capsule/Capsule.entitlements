@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Enable App Sandbox -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+
+	<!-- Virtualization entitlement (required for Containerization framework) -->
+	<key>com.apple.security.virtualization</key>
+	<true/>
+
+	<!-- Network access for pulling images and container networking -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+
+	<!-- Allow user to select directories for mounting into containers -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+
+	<!-- Store security-scoped bookmarks for mounted directories -->
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+</dict>
+</plist>
