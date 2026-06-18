@@ -13,6 +13,7 @@ class ContainerViewModel: ObservableObject {
     @Published var containers: [ContainerSummary] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var isRuntimeBootstrapped = false
 
     // MARK: - Private Properties
 
@@ -24,6 +25,10 @@ class ContainerViewModel: ObservableObject {
     init() {
         logger.info("ContainerViewModel initialized")
         Task {
+            // Check if auto-start is enabled
+            if UserDefaults.standard.bool(forKey: "autoStartRuntime") {
+                await startContainerSystemIfNeeded()
+            }
             await initializeRuntime()
         }
         startPeriodicRefresh()
@@ -33,16 +38,66 @@ class ContainerViewModel: ObservableObject {
         updateTask?.cancel()
     }
 
-    // MARK: - Initialization
+    // MARK: - Runtime Initialization
 
-    private func initializeRuntime() async {
+    func initializeRuntime() async {
         do {
             try await runtime.bootstrap()
             logger.info("Runtime bootstrapped successfully")
+            isRuntimeBootstrapped = true
             await refreshContainers()
         } catch {
             logger.error("Failed to bootstrap runtime: \(error)")
+            isRuntimeBootstrapped = false
             errorMessage = "Failed to initialize: \(error.localizedDescription)"
+        }
+    }
+
+    /// Start the container system service if not already running
+    private func startContainerSystemIfNeeded() async {
+        logger.info("Checking container system status")
+
+        // First check if it's already running
+        let checkProcess = Process()
+        checkProcess.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        checkProcess.arguments = ["-c", "/usr/local/bin/container system status 2>&1 | grep 'status' | grep -q 'running'"]
+
+        do {
+            try checkProcess.run()
+            checkProcess.waitUntilExit()
+
+            if checkProcess.terminationStatus == 0 {
+                logger.info("Container system is already running")
+                return
+            }
+        } catch {
+            logger.warning("Failed to check container system status: \(error)")
+        }
+
+        // If not running, start it
+        logger.info("Starting container system")
+        do {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+            process.arguments = ["-c", "/usr/local/bin/container system start"]
+
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = pipe
+
+            try process.run()
+            process.waitUntilExit()
+
+            if process.terminationStatus == 0 {
+                logger.info("Container system started successfully")
+                // Wait for system to initialize
+                try await Task.sleep(for: .seconds(2))
+            } else {
+                let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                logger.warning("Container system start returned status: \(process.terminationStatus), output: \(output)")
+            }
+        } catch {
+            logger.error("Failed to start container system: \(error)")
         }
     }
 
@@ -179,7 +234,9 @@ class ContainerViewModel: ObservableObject {
         updateTask = Task {
             while !Task.isCancelled {
                 await refreshContainers()
-                try? await Task.sleep(for: .seconds(2))
+                let interval = UserDefaults.standard.double(forKey: "autoRefreshInterval")
+                let refreshInterval = interval > 0 ? interval : 2.0
+                try? await Task.sleep(for: .seconds(refreshInterval))
             }
         }
     }

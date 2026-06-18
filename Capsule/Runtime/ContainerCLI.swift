@@ -96,7 +96,12 @@ actor ContainerCLI {
         image: String,
         cpus: Int,
         memoryMB: Int,
-        command: [String]? = nil
+        command: [String]? = nil,
+        environment: [String: String] = [:],
+        ports: [String] = [],
+        network: String? = nil,
+        platform: String? = nil,
+        volumes: [String] = []
     ) async throws -> String {
         logger.info("Creating container: \(name) with image: \(image)")
 
@@ -104,9 +109,27 @@ actor ContainerCLI {
             "create",
             "--name", name,
             "--cpus", "\(cpus)",
-            "--memory", "\(memoryMB)MB",
-            image
+            "--memory", "\(memoryMB)MB"
         ]
+
+        // Flags must precede the image positional argument.
+        for (key, value) in environment {
+            args.append(contentsOf: ["--env", "\(key)=\(value)"])
+        }
+        for port in ports where !port.isEmpty {
+            args.append(contentsOf: ["--publish", port])
+        }
+        for volume in volumes where !volume.isEmpty {
+            args.append(contentsOf: ["--volume", volume])
+        }
+        if let network, !network.isEmpty {
+            args.append(contentsOf: ["--network", network])
+        }
+        if let platform, !platform.isEmpty, platform != "auto" {
+            args.append(contentsOf: ["--platform", platform])
+        }
+
+        args.append(image)
 
         if let command = command, !command.isEmpty {
             args.append(contentsOf: command)
@@ -199,21 +222,61 @@ actor ContainerCLI {
 
     // MARK: - Images
 
-    struct ImageInfo: Codable {
+    struct ImageInfo: Codable, Identifiable {
         let id: String
-        let repository: String
-        let tag: String
-        let digest: String
-        let size: Int64
-        let created: String
+        let configuration: ImageConfiguration
+        let variants: [Variant]?
+
+        struct ImageConfiguration: Codable {
+            let name: String
+            let creationDate: String?
+            let descriptor: Descriptor
+
+            struct Descriptor: Codable {
+                let digest: String
+                let size: Int64
+            }
+        }
+
+        struct Variant: Codable {
+            let size: Int64
+            let digest: String
+            let platform: Platform?
+
+            struct Platform: Codable {
+                let architecture: String
+                let os: String
+            }
+        }
+
+        // Computed properties for UI
+        var repository: String {
+            let parts = configuration.name.split(separator: ":")
+            return String(parts.first ?? "")
+        }
+
+        var tag: String {
+            let parts = configuration.name.split(separator: ":")
+            return parts.count > 1 ? String(parts[1]) : "latest"
+        }
+
+        var digest: String {
+            configuration.descriptor.digest
+        }
+
+        var size: Int64 {
+            // Use the first variant's size (actual image size), not descriptor size (manifest size)
+            variants?.first?.size ?? configuration.descriptor.size
+        }
+
+        var created: String {
+            configuration.creationDate ?? ""
+        }
 
         enum CodingKeys: String, CodingKey {
             case id
-            case repository
-            case tag
-            case digest
-            case size
-            case created
+            case configuration
+            case variants
         }
     }
 
@@ -253,17 +316,37 @@ actor ContainerCLI {
 
     // MARK: - Volumes
 
-    struct VolumeInfo: Codable {
-        let name: String
-        let mountPoint: String
-        let driver: String
-        let createdAt: String?
+    struct VolumeInfo: Codable, Identifiable {
+        var id: String { name }
+        let configuration: VolumeConfiguration
+
+        struct VolumeConfiguration: Codable {
+            let name: String
+            let driver: String
+            let source: String?
+            let creationDate: String?
+            let sizeInBytes: Int64?
+        }
+
+        // Computed properties for UI
+        var name: String {
+            configuration.name
+        }
+
+        var mountPoint: String {
+            configuration.source ?? ""
+        }
+
+        var driver: String {
+            configuration.driver
+        }
+
+        var createdAt: String? {
+            configuration.creationDate
+        }
 
         enum CodingKeys: String, CodingKey {
-            case name
-            case mountPoint = "mount_point"
-            case driver
-            case createdAt = "created_at"
+            case configuration
         }
     }
 
@@ -303,17 +386,41 @@ actor ContainerCLI {
 
     // MARK: - Networks
 
-    struct NetworkInfo: Codable {
-        let name: String
-        let driver: String
-        let subnet: String?
+    struct NetworkInfo: Codable, Identifiable {
         let id: String
+        let configuration: NetworkConfiguration
+        let status: NetworkStatus?
+
+        struct NetworkConfiguration: Codable {
+            let name: String
+            let mode: String
+            let plugin: String
+            let creationDate: String?
+        }
+
+        struct NetworkStatus: Codable {
+            let ipv4Gateway: String?
+            let ipv4Subnet: String?
+            let ipv6Subnet: String?
+        }
+
+        // Computed properties for UI
+        var name: String {
+            configuration.name
+        }
+
+        var driver: String {
+            configuration.plugin
+        }
+
+        var subnet: String? {
+            status?.ipv4Subnet
+        }
 
         enum CodingKeys: String, CodingKey {
-            case name
-            case driver
-            case subnet
             case id
+            case configuration
+            case status
         }
     }
 
@@ -349,6 +456,84 @@ actor ContainerCLI {
         logger.info("Deleting network: \(name)")
         _ = try await runCommand(["network", "rm", name])
         logger.info("Network deleted: \(name)")
+    }
+
+    // MARK: - Machines
+
+    /// A container machine (a full, loginable Linux VM — distinct from a container).
+    struct MachineInfo: Codable, Identifiable {
+        let configuration: MachineConfiguration
+        let status: MachineStatus?
+
+        var id: String { configuration.name }
+
+        struct MachineConfiguration: Codable {
+            let name: String
+            let cpus: Int?
+            let memoryInBytes: Int?
+            let creationDate: String?
+        }
+
+        struct MachineStatus: Codable {
+            let state: String?
+            let ipv4Address: String?
+        }
+
+        // Computed properties for UI
+        var name: String { configuration.name }
+        var state: String { status?.state ?? "unknown" }
+        var ipAddress: String? { status?.ipv4Address }
+        var cpus: Int { configuration.cpus ?? 0 }
+        var memoryBytes: Int { configuration.memoryInBytes ?? 0 }
+        var isRunning: Bool { state.lowercased() == "running" }
+    }
+
+    /// List all container machines.
+    func listMachines() async throws -> [MachineInfo] {
+        logger.info("Listing machines via CLI")
+        let output = try await runCommand(["machine", "list", "--format", "json"])
+        guard let data = output.data(using: .utf8) else {
+            throw CLIError.invalidOutput("Failed to convert output to data")
+        }
+        do {
+            return try JSONDecoder().decode([MachineInfo].self, from: data)
+        } catch {
+            // The exact JSON shape may differ across CLI versions; log and degrade
+            // gracefully rather than crashing the UI.
+            logger.error("Failed to parse machine list: \(error). Raw: \(output)")
+            return []
+        }
+    }
+
+    /// Create (and boot) a new machine from an image.
+    func createMachine(name: String, image: String, cpus: Int?, memoryGB: Double?, platform: String?) async throws {
+        logger.info("Creating machine: \(name) from \(image)")
+        var args = ["machine", "create", "--name", name]
+        if let cpus { args.append(contentsOf: ["--cpus", "\(cpus)"]) }
+        if let memoryGB { args.append(contentsOf: ["--memory", "\(Int(memoryGB))G"]) }
+        if let platform, !platform.isEmpty, platform != "auto" {
+            args.append(contentsOf: ["--platform", platform])
+        }
+        args.append(image)
+        _ = try await runCommand(args)
+    }
+
+    /// Stop a running machine.
+    func stopMachine(name: String) async throws {
+        logger.info("Stopping machine: \(name)")
+        _ = try await runCommand(["machine", "stop", name])
+    }
+
+    /// Boot a machine by running a trivial command (machine has no explicit "start").
+    func startMachine(name: String) async throws {
+        logger.info("Starting machine: \(name)")
+        _ = try await runCommand(["machine", "run", "-n", name, "--", "true"])
+    }
+
+    /// Delete a machine.
+    func deleteMachine(name: String) async throws {
+        logger.info("Deleting machine: \(name)")
+        _ = try await runCommand(["machine", "delete", name])
     }
 
     // MARK: - Helper Methods

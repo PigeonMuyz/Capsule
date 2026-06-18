@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AAAAAAAAAAAAAAAA00000011 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = AAAAAAAAAAAAAAAA00000010 /* SwiftTerm */; };
 		C4BDAFBC2FE2A9EC00E5F72C /* Containerization in Frameworks */ = {isa = PBXBuildFile; productRef = AAAAAAAAAAAAAAAA00000002 /* Containerization */; };
 		C4BDAFBD2FE2A9EC00E5F72C /* ContainerizationOCI in Frameworks */ = {isa = PBXBuildFile; productRef = AAAAAAAAAAAAAAAA00000003 /* ContainerizationOCI */; };
 		C4BDAFBE2FE2A9EC00E5F72C /* ContainerizationEXT4 in Frameworks */ = {isa = PBXBuildFile; productRef = AAAAAAAAAAAAAAAA00000004 /* ContainerizationEXT4 */; };
@@ -33,6 +34,7 @@
 				C4BDAFBE2FE2A9EC00E5F72C /* ContainerizationEXT4 in Frameworks */,
 				C4BDAFBD2FE2A9EC00E5F72C /* ContainerizationOCI in Frameworks */,
 				C4BDAFBC2FE2A9EC00E5F72C /* Containerization in Frameworks */,
+				AAAAAAAAAAAAAAAA00000011 /* SwiftTerm in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -76,6 +78,7 @@
 				AAAAAAAAAAAAAAAA00000003 /* ContainerizationOCI */,
 				AAAAAAAAAAAAAAAA00000004 /* ContainerizationEXT4 */,
 				AAAAAAAAAAAAAAAA00000005 /* ContainerizationExtras */,
+				AAAAAAAAAAAAAAAA00000010 /* SwiftTerm */,
 			);
 			productName = MyApp;
 			productReference = 000000000000000000000120 /* Capsule.app */;
@@ -102,11 +105,15 @@
 			knownRegions = (
 				en,
 				Base,
+				"zh-Hans",
+				"zh-Hant",
+				ja,
 			);
 			mainGroup = 000000000000000000000001;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				AAAAAAAAAAAAAAAA00000001 /* XCRemoteSwiftPackageReference "containerization" */,
+				AAAAAAAAAAAAAAAA00000020 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 			);
 			preferredProjectObjectVersion = 90;
 			productRefGroup = 000000000000000000000020 /* Products */;
@@ -381,6 +388,14 @@
 				kind = branch;
 			};
 		};
+		AAAAAAAAAAAAAAAA00000020 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -403,6 +418,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AAAAAAAAAAAAAAAA00000001 /* XCRemoteSwiftPackageReference "containerization" */;
 			productName = ContainerizationExtras;
+		};
+		AAAAAAAAAAAAAAAA00000010 /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AAAAAAAAAAAAAAAA00000020 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTerm;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -1,219 +1,136 @@
 import SwiftUI
 
-/// Images management view
-struct ImagesView: View {
+/// Middle column of the Images view: the image list. Auto-refreshes on a timer.
+struct ImagesListColumn: View {
     @ObservedObject var viewModel: ContainerViewModel
+    @Binding var selection: ContainerCLI.ImageInfo?
+
     @State private var images: [ContainerCLI.ImageInfo] = []
     @State private var showingPullSheet = false
     @State private var isLoading = false
     @State private var errorMessage: String?
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header toolbar
-            toolbar
-
-            Divider()
-
-            // Error message
-            if let error = errorMessage {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                    Text(error)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Dismiss") {
-                        errorMessage = nil
-                    }
-                }
-                .padding()
-                .background(Color.orange.opacity(0.1))
-            }
-
-            // Images list
-            if isLoading {
-                ProgressView("Loading images...")
+        Group {
+            if isLoading && images.isEmpty {
+                ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if images.isEmpty {
                 emptyState
             } else {
-                imagesList
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(images) { image in
+                            ImageRow(
+                                image: image,
+                                isSelected: selection?.id == image.id,
+                                onSelect: { selection = image },
+                                onDelete: { deleteImage(image) }
+                            )
+                        }
+                    }
+                }
             }
         }
+        .background(Color(nsColor: .controlBackgroundColor))
+        .columnToolbar(title: "Images", addHelp: "Pull Image") { showingPullSheet = true }
         .sheet(isPresented: $showingPullSheet) {
-            PullImageView(onPull: { reference in
-                Task {
-                    await pullImage(reference)
-                }
-            })
+            PullImageView { _ in Task { await loadImages() } }
         }
-        .onAppear {
-            Task {
+        .task {
+            while !Task.isCancelled {
                 await loadImages()
+                try? await Task.sleep(for: .seconds(refreshInterval))
             }
         }
     }
 
-    // MARK: - Toolbar
-
-    private func toolbar: some View {
-        HStack {
-            Text("Images")
-                .font(.title)
-                .fontWeight(.bold)
-
-            Spacer()
-
-            Button(action: {
-                Task {
-                    await loadImages()
-                }
-            }) {
-                Label("Refresh", systemImage: "arrow.clockwise")
-            }
-            .buttonStyle(.bordered)
-
-            Button(action: { showingPullSheet = true }) {
-                Label("Pull Image", systemImage: "arrow.down.circle.fill")
-            }
-            .buttonStyle(.borderedProminent)
-        }
-        .padding()
+    private var refreshInterval: Double {
+        let i = UserDefaults.standard.double(forKey: "autoRefreshInterval")
+        return max(i > 0 ? i : 2.0, 5)
     }
-
-    // MARK: - Empty State
 
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: "photo.stack")
-                .font(.system(size: 64))
+                .font(.system(size: 48))
                 .foregroundStyle(.secondary)
 
             Text("No Images")
-                .font(.title2)
+                .font(.title3)
                 .fontWeight(.semibold)
 
-            Text("Pull an image to get started")
-                .foregroundStyle(.secondary)
-
             Button(action: { showingPullSheet = true }) {
-                Label("Pull Image", systemImage: "arrow.down.circle")
+                Label("Pull Image", systemImage: "plus.circle.fill")
             }
             .buttonStyle(.borderedProminent)
-            .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Images List
-
-    private var imagesList: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                ForEach(images) { image in
-                    imageCard(image)
-                }
-            }
-            .padding()
-        }
-    }
-
-    private func imageCard(_ image: ContainerCLI.ImageInfo) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "photo.fill")
-                .font(.title2)
-                .foregroundStyle(.blue)
-                .frame(width: 40)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(image.repository)
-                    .font(.headline)
-
-                Text(image.tag)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                HStack(spacing: 16) {
-                    Label(formatSize(image.size), systemImage: "externaldrive")
-                    Label(String(image.id.prefix(12)), systemImage: "number")
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Menu {
-                Button(action: {
-                    createContainerFromImage(image)
-                }) {
-                    Label("Create Container", systemImage: "play.circle")
-                }
-
-                Divider()
-
-                Button(role: .destructive, action: {
-                    deleteImage(image)
-                }) {
-                    Label("Delete", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.title2)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-        )
-    }
-
-    // MARK: - Actions
-
     private func loadImages() async {
         isLoading = true
-        errorMessage = nil
-
         do {
             images = try await viewModel.runtime.listImages()
         } catch {
             errorMessage = "Failed to load images: \(error.localizedDescription)"
         }
-
         isLoading = false
-    }
-
-    private func pullImage(_ reference: String) async {
-        isLoading = true
-        errorMessage = nil
-
-        do {
-            try await viewModel.runtime.pullImage(reference: reference)
-            await loadImages()
-        } catch {
-            errorMessage = "Failed to pull image: \(error.localizedDescription)"
-            isLoading = false
-        }
     }
 
     private func deleteImage(_ image: ContainerCLI.ImageInfo) {
         Task {
             do {
                 try await viewModel.runtime.deleteImage(id: image.id)
+                if selection?.id == image.id { selection = nil }
                 await loadImages()
             } catch {
                 errorMessage = "Failed to delete image: \(error.localizedDescription)"
             }
         }
     }
+}
 
-    private func createContainerFromImage(_ image: ContainerCLI.ImageInfo) {
-        // TODO: Open create container sheet with pre-filled image
+// MARK: - Image Row
+
+struct ImageRow: View {
+    let image: ContainerCLI.ImageInfo
+    let isSelected: Bool
+    let onSelect: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 12) {
+                Image(systemName: "photo")
+                    .foregroundStyle(.blue)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(image.repository)
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+
+                    Text(image.tag)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Text(formatSize(image.size))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button("Delete", role: .destructive, action: onDelete)
+        }
     }
 
     private func formatSize(_ bytes: Int64) -> String {
@@ -223,10 +140,106 @@ struct ImagesView: View {
     }
 }
 
-#Preview {
-    ImagesView(viewModel: ContainerViewModel())
-        .frame(width: 900, height: 600)
+// MARK: - Image Detail Panel
+
+struct ImageDetailPanel: View {
+    let image: ContainerCLI.ImageInfo
+    @ObservedObject var viewModel: ContainerViewModel
+    @State private var selectedTab = "info"
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 0) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(image.repository)
+                            .font(.title2)
+                            .fontWeight(.semibold)
+
+                        Text(image.tag)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+                }
+                .padding()
+
+                HStack(spacing: 0) {
+                    TabButton(title: "Info", icon: "info.circle", isSelected: selectedTab == "info") {
+                        selectedTab = "info"
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal)
+
+                Divider()
+            }
+
+            ScrollView {
+                ImageInfoTabView(image: image, viewModel: viewModel)
+            }
+        }
+    }
 }
+
+// MARK: - Image Info Tab
+
+struct ImageInfoTabView: View {
+    let image: ContainerCLI.ImageInfo
+    @ObservedObject var viewModel: ContainerViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            InfoSection(title: "General") {
+                InfoRow(label: "Repository", value: image.repository)
+                InfoRow(label: "Tag", value: image.tag)
+                InfoRow(label: "ID", value: String(image.id.prefix(12)))
+                InfoRow(label: "Size", value: formatSize(image.size))
+            }
+
+            InfoSection(title: "Details") {
+                InfoRow(label: "Digest", value: String(image.digest.suffix(12)))
+                if !image.created.isEmpty {
+                    InfoRow(label: "Created", value: image.created)
+                }
+            }
+
+            InfoSection(title: "Actions") {
+                Button(action: { createContainer() }) {
+                    Label("Create Container", systemImage: "plus.circle.fill")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+
+            Spacer()
+        }
+        .padding()
+    }
+
+    private func formatSize(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
+    }
+
+    private func createContainer() {
+        Task {
+            let containerName = "container-\(UUID().uuidString.prefix(8))"
+            let spec = ContainerSpec(
+                name: containerName,
+                image: image.configuration.name,
+                cpus: 2,
+                memoryBytes: 2 * 1024 * 1024 * 1024,
+                command: []
+            )
+            await viewModel.createContainer(spec: spec)
+        }
+    }
+}
+
+// MARK: - Pull Image View
 
 struct PullImageView: View {
     @Environment(\.dismiss) private var dismiss
@@ -239,11 +252,11 @@ struct PullImageView: View {
         NavigationStack {
             Form {
                 Section("Image Reference") {
-                    TextField("docker.io/library/alpine:latest", text: $imageReference)
+                    TextField("nginx:latest", text: $imageReference)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
 
-                    Text("Examples: alpine, nginx:latest, postgres:14")
+                    Text("Examples: nginx:latest, postgres:14, node:18-alpine")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -261,34 +274,24 @@ struct PullImageView: View {
             .navigationTitle("Pull Image")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(isPulling)
+                    Button("Cancel") { dismiss() }
+                        .disabled(isPulling)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Pull") {
-                        pullImage()
-                    }
-                    .disabled(imageReference.isEmpty || isPulling)
+                    Button("Pull") { pullImage() }
+                        .disabled(imageReference.isEmpty || isPulling)
                 }
             }
-            .frame(width: 500, height: 250)
+            .frame(width: 500, height: 200)
         }
     }
 
     private func pullImage() {
         isPulling = true
-        // Simulate pull delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             onPull(imageReference)
             dismiss()
         }
     }
-}
-
-#Preview {
-    ImagesView(viewModel: ContainerViewModel())
-        .frame(width: 900, height: 600)
 }

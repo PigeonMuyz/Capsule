@@ -13,6 +13,10 @@ struct ContainerSpec: Codable, Hashable, Identifiable {
     var command: [String]          // Startup command
     var workingDirectory: String   // Working directory (default: "/")
     var environment: [String: String] = [:]
+    var publishedPorts: [String] = []   // e.g. "8080:80" or "127.0.0.1:5432:5432"
+    var network: String? = nil
+    var platform: String? = nil         // e.g. "linux/arm64"; nil = CLI default
+    var volumeBinds: [String] = []      // e.g. "/host/path:/container/path"
     var mounts: [MountSpec] = []
     var rosettaEnabled: Bool = false
     var autostart: Bool = false
@@ -62,13 +66,13 @@ enum ContainerStatus: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .creating: return "Creating"
-        case .created: return "Created"
-        case .starting: return "Starting"
-        case .running: return "Running"
-        case .stopping: return "Stopping"
-        case .stopped: return "Stopped"
-        case .failed: return "Failed"
+        case .creating: return NSLocalizedString("status.creating", value: "Creating", comment: "Container status")
+        case .created: return NSLocalizedString("status.created", value: "Created", comment: "Container status")
+        case .starting: return NSLocalizedString("status.starting", value: "Starting", comment: "Container status")
+        case .running: return NSLocalizedString("status.running", value: "Running", comment: "Container status")
+        case .stopping: return NSLocalizedString("status.stopping", value: "Stopping", comment: "Container status")
+        case .stopped: return NSLocalizedString("status.stopped", value: "Stopped", comment: "Container status")
+        case .failed: return NSLocalizedString("status.failed", value: "Failed", comment: "Container status")
         }
     }
 

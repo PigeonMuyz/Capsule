@@ -21,11 +21,6 @@ actor RuntimeCore {
 
     /// Initialize the runtime (verify CLI is available)
     func bootstrap() async throws {
-        guard !isInitialized else {
-            logger.warning("Runtime already initialized")
-            return
-        }
-
         logger.info("Initializing runtime")
 
         // Verify container CLI is available
@@ -35,6 +30,7 @@ actor RuntimeCore {
             logger.info("Runtime initialized successfully")
         } catch {
             logger.error("Failed to initialize runtime: \(error)")
+            isInitialized = false
             throw ContainerError.runtimeNotBootstrapped
         }
     }
@@ -88,7 +84,12 @@ actor RuntimeCore {
                 image: spec.image,
                 cpus: spec.cpus,
                 memoryMB: memoryMB,
-                command: spec.command.isEmpty ? nil : spec.command
+                command: spec.command.isEmpty ? nil : spec.command,
+                environment: spec.environment,
+                ports: spec.publishedPorts,
+                network: spec.network,
+                platform: spec.platform,
+                volumes: spec.volumeBinds
             )
 
             logger.info("Container created with ID: \(containerID)")
@@ -290,6 +291,38 @@ actor RuntimeCore {
         }
 
         try await cli.deleteNetwork(name: name)
+    }
+
+    // MARK: - Machines
+
+    /// List all container machines (loginable Linux VMs).
+    func listMachines() async throws -> [ContainerCLI.MachineInfo] {
+        guard isInitialized else { throw ContainerError.runtimeNotBootstrapped }
+        return try await cli.listMachines()
+    }
+
+    /// Create (and boot) a new machine.
+    func createMachine(name: String, image: String, cpus: Int?, memoryGB: Double?, platform: String?) async throws {
+        guard isInitialized else { throw ContainerError.runtimeNotBootstrapped }
+        try await cli.createMachine(name: name, image: image, cpus: cpus, memoryGB: memoryGB, platform: platform)
+    }
+
+    /// Start (boot) a machine.
+    func startMachine(name: String) async throws {
+        guard isInitialized else { throw ContainerError.runtimeNotBootstrapped }
+        try await cli.startMachine(name: name)
+    }
+
+    /// Stop a machine.
+    func stopMachine(name: String) async throws {
+        guard isInitialized else { throw ContainerError.runtimeNotBootstrapped }
+        try await cli.stopMachine(name: name)
+    }
+
+    /// Delete a machine.
+    func deleteMachine(name: String) async throws {
+        guard isInitialized else { throw ContainerError.runtimeNotBootstrapped }
+        try await cli.deleteMachine(name: name)
     }
 
     // MARK: - Helper Methods

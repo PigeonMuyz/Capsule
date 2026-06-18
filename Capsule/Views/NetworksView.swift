@@ -1,207 +1,245 @@
 import SwiftUI
 
-/// Networks management view
-struct NetworksView: View {
+/// Middle column of the Networks view: the network list. Auto-refreshes on a timer.
+struct NetworksListColumn: View {
     @ObservedObject var viewModel: ContainerViewModel
+    @Binding var selection: ContainerCLI.NetworkInfo?
+
     @State private var networks: [ContainerCLI.NetworkInfo] = []
+    @State private var showingCreateSheet = false
     @State private var isLoading = false
     @State private var errorMessage: String?
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header toolbar
-            toolbar
-
-            Divider()
-
-            // Error message
-            if let error = errorMessage {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                    Text(error)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Dismiss") {
-                        errorMessage = nil
-                    }
-                }
-                .padding()
-                .background(Color.orange.opacity(0.1))
-            }
-
-            // Networks list
-            if isLoading {
-                ProgressView("Loading networks...")
+        Group {
+            if isLoading && networks.isEmpty {
+                ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if networks.isEmpty {
                 emptyState
             } else {
-                networksList
-            }
-        }
-        .onAppear {
-            Task {
-                await loadNetworks()
-            }
-        }
-    }
-
-    // MARK: - Toolbar
-
-    private var toolbar: some View {
-        HStack {
-            Text("Networks")
-                .font(.title)
-                .fontWeight(.bold)
-
-            Spacer()
-
-            Button(action: {
-                Task {
-                    await loadNetworks()
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(networks) { network in
+                            NetworkRow(
+                                network: network,
+                                isSelected: selection?.id == network.id,
+                                onSelect: { selection = network },
+                                onDelete: { deleteNetwork(network) }
+                            )
+                        }
+                    }
                 }
-            }) {
-                Label("Refresh", systemImage: "arrow.clockwise")
             }
-            .buttonStyle(.bordered)
-
-            Button(action: { createNetwork() }) {
-                Label("Create Network", systemImage: "plus.circle.fill")
-            }
-            .buttonStyle(.borderedProminent)
         }
-        .padding()
+        .background(Color(nsColor: .controlBackgroundColor))
+        .columnToolbar(title: "Networks", addHelp: "Create Network") { showingCreateSheet = true }
+        .sheet(isPresented: $showingCreateSheet) {
+            CreateNetworkView(onCreate: { name, driver in Task { await createNetwork(name, driver: driver) } })
+        }
+        .task {
+            while !Task.isCancelled {
+                await loadNetworks()
+                try? await Task.sleep(for: .seconds(refreshInterval))
+            }
+        }
     }
 
-    // MARK: - Empty State
+    private var refreshInterval: Double {
+        let i = UserDefaults.standard.double(forKey: "autoRefreshInterval")
+        return max(i > 0 ? i : 2.0, 5)
+    }
 
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: "network")
-                .font(.system(size: 64))
+                .font(.system(size: 48))
                 .foregroundStyle(.secondary)
 
             Text("No Networks")
-                .font(.title2)
+                .font(.title3)
                 .fontWeight(.semibold)
 
-            Text("Networks enable communication between containers")
-                .foregroundStyle(.secondary)
-
-            Button(action: { createNetwork() }) {
-                Label("Create Network", systemImage: "plus.circle")
+            Button(action: { showingCreateSheet = true }) {
+                Label("Create Network", systemImage: "plus.circle.fill")
             }
             .buttonStyle(.borderedProminent)
-            .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Networks List
-
-    private var networksList: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                ForEach(networks) { network in
-                    networkCard(network)
-                }
-            }
-            .padding()
-        }
-    }
-
-    private func networkCard(_ network: ContainerCLI.NetworkInfo) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "network")
-                .font(.title2)
-                .foregroundStyle(.green)
-                .frame(width: 40)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(network.name)
-                    .font(.headline)
-
-                if let subnet = network.subnet {
-                    Text(subnet)
-                        .font(.caption)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                }
-
-                Label(network.driver, systemImage: "gearshape")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Menu {
-                Button(action: {
-                    inspectNetwork(network)
-                }) {
-                    Label("Inspect", systemImage: "info.circle")
-                }
-
-                Divider()
-
-                Button(role: .destructive, action: {
-                    deleteNetwork(network)
-                }) {
-                    Label("Delete", systemImage: "trash")
-                }
-                .disabled(network.name == "default")
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.title2)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-        )
-    }
-
-    // MARK: - Actions
-
     private func loadNetworks() async {
         isLoading = true
-        errorMessage = nil
-
         do {
             networks = try await viewModel.runtime.listNetworks()
         } catch {
             errorMessage = "Failed to load networks: \(error.localizedDescription)"
         }
-
         isLoading = false
     }
 
-    private func createNetwork() {
-        // TODO: Show create network sheet
+    private func createNetwork(_ name: String, driver: String) async {
+        do {
+            try await viewModel.runtime.createNetwork(name: name, driver: driver)
+            await loadNetworks()
+        } catch {
+            errorMessage = "Failed to create network: \(error.localizedDescription)"
+        }
     }
 
     private func deleteNetwork(_ network: ContainerCLI.NetworkInfo) {
         Task {
             do {
                 try await viewModel.runtime.deleteNetwork(name: network.name)
+                if selection?.id == network.id { selection = nil }
                 await loadNetworks()
             } catch {
                 errorMessage = "Failed to delete network: \(error.localizedDescription)"
             }
         }
     }
+}
 
-    private func inspectNetwork(_ network: ContainerCLI.NetworkInfo) {
-        // TODO: Show network details
+// MARK: - Network Row
+
+struct NetworkRow: View {
+    let network: ContainerCLI.NetworkInfo
+    let isSelected: Bool
+    let onSelect: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 12) {
+                Image(systemName: "network")
+                    .foregroundStyle(.orange)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(network.name)
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+
+                    Text(network.driver)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button("Delete", role: .destructive, action: onDelete)
+        }
     }
 }
 
-#Preview {
-    NetworksView(viewModel: ContainerViewModel())
-        .frame(width: 900, height: 600)
+// MARK: - Network Detail Panel
+
+struct NetworkDetailPanel: View {
+    let network: ContainerCLI.NetworkInfo
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(network.name)
+                    .font(.title2)
+                    .fontWeight(.semibold)
+
+                Spacer()
+            }
+            .padding()
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    InfoSection(title: "General") {
+                        InfoRow(label: "Name", value: network.name)
+                        InfoRow(label: "Driver", value: network.driver)
+                        InfoRow(label: "ID", value: String(network.id.prefix(12)))
+                    }
+
+                    if let subnet = network.subnet {
+                        InfoSection(title: "Networking") {
+                            InfoRow(label: "Subnet", value: subnet)
+                        }
+                    }
+
+                    Spacer()
+                }
+                .padding()
+            }
+        }
+    }
+}
+
+// MARK: - Create Network View
+
+struct CreateNetworkView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var networkName = ""
+    @State private var driver = "bridge"
+    @State private var isCreating = false
+
+    let onCreate: (String, String) -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Network Configuration") {
+                    TextField("Network Name", text: $networkName)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+
+                    Picker("Driver", selection: $driver) {
+                        Text("Bridge").tag("bridge")
+                        Text("NAT").tag("nat")
+                        Text("Host").tag("host")
+                    }
+                    .pickerStyle(.segmented)
+
+                    Text("Network names must be lowercase and can contain letters, numbers, hyphens, and underscores")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if isCreating {
+                    Section {
+                        HStack {
+                            ProgressView()
+                            Text("Creating network...")
+                        }
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .navigationTitle("Create Network")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .disabled(isCreating)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") { createNetwork() }
+                        .disabled(networkName.isEmpty || isCreating)
+                }
+            }
+            .frame(width: 500, height: 300)
+        }
+    }
+
+    private func createNetwork() {
+        isCreating = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            onCreate(networkName, driver)
+            dismiss()
+        }
+    }
 }

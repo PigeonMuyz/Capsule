@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Allow debugger to attach (required for Xcode debugging) -->
+	<key>com.apple.security.get-task-allow</key>
+	<true/>
+
 	<!-- Disable App Sandbox to allow system container access -->
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
