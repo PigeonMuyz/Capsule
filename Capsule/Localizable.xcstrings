@@ -423,6 +423,9 @@
         }
       }
     },
+    "Container not running" : {
+
+    },
     "Container path (e.g. /data)" : {
 
     },
@@ -869,6 +872,9 @@
     "Examples: nginx:latest, postgres:14, node:18-alpine" : {
 
     },
+    "External Terminal" : {
+
+    },
     "File Browser" : {
       "localizations" : {
         "ja" : {
@@ -1083,6 +1089,9 @@
       }
     },
     "IP" : {
+
+    },
+    "iTerm" : {
 
     },
     "KEY" : {
@@ -1693,6 +1702,9 @@
         }
       }
     },
+    "Open in Terminal" : {
+
+    },
     "Open Shell" : {
       "localizations" : {
         "ja" : {
@@ -2227,6 +2239,9 @@
         }
       }
     },
+    "Start the container to open a shell" : {
+
+    },
     "Start/Stop Container Runtime with Capsule" : {
       "localizations" : {
         "ja" : {
@@ -2732,6 +2747,9 @@
 
     },
     "Uptime" : {
+
+    },
+    "Used by “Open in Terminal”. The in-app terminal is always available." : {
 
     },
     "value" : {

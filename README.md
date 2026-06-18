@@ -1,170 +1,99 @@
 # Capsule
 
-<div align="center">
+English | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md) | [日本語](README.ja.md)
 
-**基于 Apple Containerization Framework 的原生 macOS 容器管理器**
+Capsule is a native macOS app for managing Apple containers from a focused desktop interface.
 
-像 OrbStack 一样管理容器和镜像，完全原生，完全 Swift。
+It wraps the system `container` runtime in a clean SwiftUI experience: containers, images, volumes, networks, Linux machines, logs, files, stats, shell access, and Docker-style imports all live in one compact window.
 
-[开发路线图](ROADMAP.md) • [Phase 1 总结](PHASE1_SUMMARY.md)
+## Why Capsule
 
-</div>
+Apple's container tooling is powerful, but day-to-day work often needs a visual surface: see what is running, stop a noisy container, open logs, pull an image, or turn a familiar `docker run` command into something the Apple container runtime can use.
 
----
+Capsule is that small native shell around the workflow. The name is literal: each container is a capsule you can inspect, start, stop, open, and remove without leaving macOS.
 
-## 🎯 项目定位
+## Features
 
-Capsule 是一个原生 macOS 容器管理工具，直接使用 **Apple Containerization framework** 创建、运行、管理 Linux 容器。
+- Manage containers: list, create, start, stop, delete, inspect, and refresh.
+- View runtime details: status, image, CPU, memory, uptime, logs, stats, file browser, and terminal entry points.
+- Manage images: list, pull, inspect, and remove local images.
+- Manage volumes and networks from dedicated native views.
+- Manage Linux machines backed by Apple container tooling.
+- Import Docker workflows:
+  - `docker run` command parsing.
+  - Docker Compose service parsing.
+  - Compose project start, stop, remove, dependency ordering, and grouped logs.
+- Native macOS settings for runtime behavior and external terminal preferences.
+- Localized UI strings through `Localizable.xcstrings`.
 
-**不是什么**：
-- ❌ 不是 Docker Desktop 的替代品
-- ❌ 不是 Apple `container` CLI 的图形壳
-- ❌ 不调用 `container` 命令行工具
+## Requirements
 
-**是什么**：
-- ✅ 直接使用 Apple Containerization Swift API
-- ✅ 原生 macOS 体验
-- ✅ SwiftUI + Swift Concurrency
-- ✅ App Sandbox 沙盒化
+- macOS 26.0 or later.
+- Xcode 26 or later for building from source.
+- Apple container tooling installed and available at `/usr/local/bin/container`.
+- Apple Silicon Mac is recommended for the current Apple container stack.
 
-## ✨ 特性
+Capsule does not install, bootstrap, or initialize the Container CLI yet. Install and initialize Apple's container tooling yourself first:
 
-### 当前实现（Phase 1 MVP）
+- [apple/container](https://github.com/apple/container)
 
-- ✅ 完整的 SwiftUI 界面
-- ✅ 容器生命周期管理（创建、启动、停止、删除）
-- ✅ 实时日志查看（stdout/stderr 分流）
-- ✅ 日志搜索和过滤
-- ✅ 容器资源配置（CPU、内存）
-- ✅ 容器详情查看
+Before launching Capsule, make sure the container runtime works in Terminal:
 
-### 规划中
-
-- 📋 Phase 2: 状态持久化（App 重启后恢复）
-- 📋 Phase 3: Agent 架构（后台运行容器）
-- 📋 Phase 4: 镜像管理（拉取、删除、缓存）
-- 📋 Phase 5: 高级功能（挂载、环境变量、自动启动）
-
-详见 [ROADMAP.md](ROADMAP.md)
-
-## 🚀 快速开始
-
-### 系统要求
-
-- **必需**：
-  - Apple Silicon Mac (M1/M2/M3/M4)
-  - macOS 26 或更高版本
-  - Xcode 26 或更高版本
-  - Apple Developer Account（本地测试可用免费账号）
-
-### 编译和运行
-
-1. **克隆仓库**
-   ```bash
-   git clone https://github.com/PigeonMuyz/Capsule.git
-   cd Capsule
-   ```
-
-2. **打开 Xcode 项目**
-   ```bash
-   open Capsule.xcodeproj
-   ```
-
-3. **等待依赖下载**
-   - Xcode 会自动下载 Apple Containerization Swift Package
-   - 首次下载可能需要几分钟
-
-4. **选择 Mac 目标并运行**
-   - 在 Xcode 顶部选择 "Capsule" scheme
-   - 选择 "My Mac" 作为目标设备
-   - 点击 ▶️ 运行（或按 ⌘R）
-
-### 当前状态说明
-
-⚠️ **重要**：当前版本的容器操作是**模拟**的。要运行真实的 Linux 容器，还需要：
-
-1. **准备 Linux Kernel**
-   - 从 Apple Containerization 仓库获取
-   - 或自行编译适用于 Apple Silicon 的内核
-
-2. **准备测试镜像**
-   - 下载 OCI 镜像（如 alpine:latest）
-   - 转换为 EXT4 rootfs
-
-3. **集成真实 API**
-   - 在 `RuntimeCore.swift` 中完成 `// TODO:` 标记的部分
-   - 连接真实的容器 stdout/stderr
-
-详见 [PHASE1_SUMMARY.md](PHASE1_SUMMARY.md) 的"待完成的集成工作"部分。
-
-## 📁 项目结构
-
+```bash
+/usr/local/bin/container system status
+/usr/local/bin/container list --all
 ```
+
+If the system is not running, start it with:
+
+```bash
+/usr/local/bin/container system start
+```
+
+Capsule can also be configured to start and stop the container system with the app.
+
+## Build
+
+Clone the project and open it in Xcode:
+
+```bash
+git clone https://github.com/PigeonMuyz/Capsule.git
+cd Capsule
+open Capsule.xcodeproj
+```
+
+Then choose the `Capsule` scheme and run it on `My Mac`.
+
+Xcode will resolve the Swift Package dependencies automatically, including Apple's `containerization` package.
+
+## Project Structure
+
+```text
 Capsule/
 ├── Capsule/
-│   ├── Models/
-│   │   └── ContainerModels.swift      # 数据模型
-│   ├── Runtime/
-│   │   └── RuntimeCore.swift          # 容器运行时核心
-│   ├── Services/
-│   │   └── LogService.swift           # 日志服务
-│   ├── ViewModels/
-│   │   └── ContainerViewModel.swift   # ViewModel
-│   ├── Views/
-│   │   ├── ContainersListView.swift   # 容器列表
-│   │   ├── CreateContainerView.swift  # 创建容器
-│   │   └── ContainerLogsView.swift    # 日志查看
-│   ├── ContentView.swift              # 主应用
-│   └── Capsule.entitlements           # 权限配置
-├── Capsule.xcodeproj/                 # Xcode 项目
-├── ROADMAP.md                         # 开发路线图
-├── PHASE1_SUMMARY.md                  # Phase 1 总结
-└── README.md                          # 本文档
+│   ├── Models/          # Container and log models
+│   ├── Runtime/         # RuntimeCore and container CLI bridge
+│   ├── Services/        # Docker and Compose parsing/project logic
+│   ├── ViewModels/      # Observable app state
+│   ├── Views/           # SwiftUI screens and detail panels
+│   ├── ContentView.swift
+│   └── Localizable.xcstrings
+├── Capsule.xcodeproj
+└── README.md
 ```
 
-## 🛠️ 技术栈
+## Tech Stack
 
-- **语言**：Swift 6.2+
-- **UI 框架**：SwiftUI
-- **并发**：Swift Concurrency (async/await, Actor)
-- **容器框架**：Apple Containerization
-  - `Containerization` - 核心容器管理
-  - `ContainerizationOCI` - OCI 镜像支持
-  - `ContainerizationEXT4` - EXT4 文件系统
-  - `ContainerizationExtras` - 额外工具
-- **日志**：OSLog (Unified Logging)
-- **架构**：MVVM + Actor Model
+- Swift and SwiftUI.
+- Swift Concurrency with actors and async/await.
+- Apple Containerization Swift packages.
+- Apple `container` CLI integration.
+- OSLog for runtime diagnostics.
 
-## 📊 统计
+## Notes
 
-- **Swift 文件**：8 个
-- **代码行数**：~1,580 行
-- **实现时间**：Phase 1 完成于 2026-06-17
+Capsule is an experimental native client for Apple's container ecosystem. The app follows the behavior and JSON output of the installed `container` command, so some screens may need small adjustments as Apple's tooling evolves.
 
-## 🤝 贡献
+## License
 
-欢迎贡献！项目当前处于 MVP 阶段，后续阶段会持续开发。
-
-### 开发原则
-
-1. ✅ **必须**通过 Apple Containerization framework 操作容器
-2. ❌ **禁止**调用 Apple `container` CLI 工具
-3. ❌ **禁止**连接系统 `container-apiserver`
-4. ✅ **必须**维护独立的状态和存储
-5. ✅ **必须**使用 App Sandbox
-
-## 📄 许可
-
-MIT License
-
-## 🙏 致谢
-
-- [Apple Containerization](https://github.com/apple/containerization) - 核心容器框架
-- Apple Virtualization Framework - VM 支持
-
----
-
-**开发状态**: Phase 1 (MVP) ✅ 已完成架构和 UI | 等待 Containerization API 集成
-
-**作者**: PigeonMuyz  
-**最后更新**: 2026-06-17
+Capsule is released under the MIT License. See [LICENSE](LICENSE).
