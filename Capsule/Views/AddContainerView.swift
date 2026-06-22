@@ -103,7 +103,37 @@ struct AddContainerView: View {
 
     static let platforms = ["auto", "linux/arm64", "linux/amd64"]
 
+    enum ConfigSection: String, CaseIterable, Identifiable {
+        case general, network, ports, volumes, environment, resources, lifecycle, advanced
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .general: return NSLocalizedString("General", comment: "")
+            case .network: return NSLocalizedString("Network", comment: "")
+            case .ports: return NSLocalizedString("Ports", comment: "")
+            case .volumes: return NSLocalizedString("Volumes", comment: "")
+            case .environment: return NSLocalizedString("Environment", comment: "")
+            case .resources: return NSLocalizedString("Resources", comment: "")
+            case .lifecycle: return NSLocalizedString("Lifecycle", comment: "")
+            case .advanced: return NSLocalizedString("Advanced", comment: "")
+            }
+        }
+        var icon: String {
+            switch self {
+            case .general: return "cube"
+            case .network: return "network"
+            case .ports: return "arrow.left.arrow.right"
+            case .volumes: return "externaldrive"
+            case .environment: return "list.bullet"
+            case .resources: return "cpu"
+            case .lifecycle: return "repeat"
+            case .advanced: return "gearshape"
+            }
+        }
+    }
+
     @State private var mode: Mode = .configure
+    @State private var configSection: ConfigSection = .general
 
     // Configure fields
     @State private var name = ""
@@ -249,8 +279,59 @@ struct AddContainerView: View {
     // MARK: - Configure
 
     private var configureForm: some View {
-        Form {
-            Section("Image") {
+        HSplitView {
+            // Left sidebar: section navigation
+            List(ConfigSection.allCases, selection: $configSection) { section in
+                Label(section.title, systemImage: section.icon)
+                    .tag(section)
+            }
+            .listStyle(.sidebar)
+            .frame(minWidth: 160, idealWidth: 180, maxWidth: 220)
+
+            // Right panel: selected section content
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Section header
+                    HStack {
+                        Label(configSection.title, systemImage: configSection.icon)
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    .padding(.bottom, 12)
+
+                    Divider()
+
+                    // Section form content
+                    Form {
+                        switch configSection {
+                        case .general: generalSection
+                        case .network: networkSection
+                        case .ports: portsSection
+                        case .volumes: mountsSection
+                        case .environment: environmentSection
+                        case .resources: resourcesSection
+                        case .lifecycle: lifecycleSection
+                        case .advanced: advancedSection
+                        }
+                    }
+                    .formStyle(.grouped)
+                    .scrollDisabled(true)
+                }
+            }
+        }
+        .task {
+            availableNetworks = (try? await viewModel.runtime.listNetworks()) ?? []
+        }
+    }
+
+    // MARK: - Config Sections
+
+    private var generalSection: some View {
+        Group {
+            Section {
                 TextField("Image", text: $image, prompt: Text("docker.io/library/nginx:latest"))
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
@@ -260,10 +341,12 @@ struct AddContainerView: View {
                 TextField("Name", text: $name, prompt: Text(suggestedName))
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
+            } header: {
+                Text("Image")
             }
 
             if !image.trimmed.isEmpty {
-                Section("Payload") {
+                Section {
                     TextField("Entrypoint", text: $entrypoint, prompt: Text("Use image default"))
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
@@ -273,12 +356,34 @@ struct AddContainerView: View {
                     TextField("Working Directory", text: $workingDirectory, prompt: Text("/"))
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
+                } header: {
+                    Text("Execution")
+                }
+
+                Section {
+                    TextField("User", text: $user, prompt: Text("name or uid:gid"))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                    HStack {
+                        TextField("UID", text: $uid)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                        TextField("GID", text: $gid)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                    }
+                    Toggle("Interactive stdin", isOn: $interactive)
+                    Toggle("Allocate TTY", isOn: $tty)
+                } header: {
+                    Text("User & TTY")
                 }
             }
+        }
+    }
 
-            environmentSection
-
-            Section("Network") {
+    private var networkSection: some View {
+        Group {
+            Section {
                 Picker("Network", selection: $networkChoice) {
                     Text("Default").tag("")
                     Text("Host").tag("host")
@@ -287,15 +392,24 @@ struct AddContainerView: View {
                         Text(net.name).tag(net.name)
                     }
                 }
+            } header: {
+                Text("Network Mode")
             }
 
-            if canPublishPorts {
-                portsSection
+            Section {
+                TextField("Published sockets", text: $publishedSocketsText, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1...3)
+            } header: {
+                Text("Sockets")
             }
+        }
+    }
 
-            mountsSection
-
-            Section("Resources") {
+    private var resourcesSection: some View {
+        Group {
+            Section {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("CPUs")
                     ResourceField(value: $cpus, range: 1...8, step: 1)
@@ -304,37 +418,38 @@ struct AddContainerView: View {
                     Text("Memory")
                     ResourceField(value: $memoryGB, range: 0.5...16, step: 0.5, unit: "GB")
                 }
+            } header: {
+                Text("Compute")
             }
+        }
+    }
 
-            Section("Lifecycle") {
+    private var lifecycleSection: some View {
+        Group {
+            Section {
                 Picker("Restart", selection: $restartPolicy) {
                     ForEach(RestartPolicy.allCases) { policy in
                         Text(policy.displayName).tag(policy)
                     }
                 }
+            } header: {
+                Text("Restart Policy")
+            }
+
+            Section {
                 Toggle("Remove after stop", isOn: $removeAfterStop)
                 Toggle("Run with init process", isOn: $useInit)
                 Toggle("Read-only root filesystem", isOn: $readOnlyRootfs)
                 Toggle("Enable Rosetta for amd64 images", isOn: $rosettaEnabled)
+            } header: {
+                Text("Container Options")
             }
+        }
+    }
 
-            Section("User & TTY") {
-                TextField("User", text: $user, prompt: Text("name or uid:gid"))
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                HStack {
-                    TextField("UID", text: $uid)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.body, design: .monospaced))
-                    TextField("GID", text: $gid)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.body, design: .monospaced))
-                }
-                Toggle("Interactive stdin", isOn: $interactive)
-                Toggle("Allocate TTY", isOn: $tty)
-            }
-
-            Section("Advanced") {
+    private var advancedSection: some View {
+        Group {
+            Section {
                 TextField("Labels", text: $labelsText, prompt: Text("com.example.key=value"), axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
@@ -343,6 +458,11 @@ struct AddContainerView: View {
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(1...4)
+            } header: {
+                Text("Labels & Limits")
+            }
+
+            Section {
                 TextField("DNS servers", text: $dnsServersText, prompt: Text("1.1.1.1"), axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
@@ -356,6 +476,11 @@ struct AddContainerView: View {
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(1...3)
                 Toggle("Disable DNS configuration", isOn: $noDNS)
+            } header: {
+                Text("DNS")
+            }
+
+            Section {
                 TextField("tmpfs mounts", text: $tmpfsText, prompt: Text("/run"), axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
@@ -363,6 +488,11 @@ struct AddContainerView: View {
                 TextField("Shared memory size", text: $shmSize, prompt: Text("64MB"))
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
+            } header: {
+                Text("Filesystem")
+            }
+
+            Section {
                 TextField("Add capabilities", text: $capAddText, prompt: Text("NET_ADMIN"), axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
@@ -371,13 +501,16 @@ struct AddContainerView: View {
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(1...3)
+            } header: {
+                Text("Capabilities")
+            }
+
+            Section {
                 Toggle("Forward SSH agent", isOn: $sshAgent)
                 Toggle("Use virtualization framework", isOn: $virtualization)
+            } header: {
+                Text("System Integration")
             }
-        }
-        .formStyle(.grouped)
-        .task {
-            availableNetworks = (try? await viewModel.runtime.listNetworks()) ?? []
         }
     }
 
@@ -742,33 +875,34 @@ struct AddContainerView: View {
 
     private var portsSection: some View {
         Section {
-            ForEach($ports) { $port in
-                HStack {
-                    TextField("host", text: $port.host)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.body, design: .monospaced))
-                    Image(systemName: "arrow.right")
-                        .foregroundStyle(.secondary)
-                    TextField("container", text: $port.container)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.body, design: .monospaced))
-                    Button(role: .destructive) {
-                        ports.removeAll { $0.id == port.id }
-                    } label: { Image(systemName: "minus.circle.fill") }
-                        .buttonStyle(.borderless)
+            if !canPublishPorts {
+                Text("Port publishing is disabled when using host networking.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach($ports) { $port in
+                    HStack {
+                        TextField("host", text: $port.host)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                        Image(systemName: "arrow.right")
+                            .foregroundStyle(.secondary)
+                        TextField("container", text: $port.container)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                        Button(role: .destructive) {
+                            ports.removeAll { $0.id == port.id }
+                        } label: { Image(systemName: "minus.circle.fill") }
+                            .buttonStyle(.borderless)
+                    }
                 }
+                Button { ports.append(PortPair()) } label: {
+                    Label("Add Port", systemImage: "plus")
+                }
+                .controlSize(.small)
             }
-            Button { ports.append(PortPair()) } label: {
-                Label("Add Port", systemImage: "plus")
-            }
-            .controlSize(.small)
-
-            TextField("Published sockets", text: $publishedSocketsText, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(.body, design: .monospaced))
-                .lineLimit(1...3)
         } header: {
-            Text("Published Ports")
+            Text("Port Mappings")
         }
     }
 

@@ -4,12 +4,14 @@ import SwiftUI
 struct CapsuleApp: App {
     @StateObject private var viewModel = ContainerViewModel()
     @StateObject private var composeManager: ComposeManager
+    @StateObject private var restartDaemon: RestartDaemon
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     init() {
         let vm = ContainerViewModel()
         _viewModel = StateObject(wrappedValue: vm)
         _composeManager = StateObject(wrappedValue: ComposeManager(runtime: vm.runtime))
+        _restartDaemon = StateObject(wrappedValue: RestartDaemon(runtime: vm.runtime))
     }
 
     var body: some Scene {
@@ -17,6 +19,7 @@ struct CapsuleApp: App {
             ContentView(viewModel: viewModel, composeManager: composeManager)
                 .onAppear {
                     appDelegate.viewModel = viewModel
+                    restartDaemon.start()
                 }
         }
         .windowStyle(.hiddenTitleBar)
