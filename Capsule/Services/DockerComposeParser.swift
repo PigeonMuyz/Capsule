@@ -59,14 +59,33 @@ struct DockerComposeParser {
         guard let image = serviceDict["image"] as? String else {
             throw ParseError.missingImage(name)
         }
+        let containerName = serviceDict["container_name"] as? String ?? name
+        let restartPolicy = serviceDict["restart"] as? String
+        let hasHealthcheck = serviceDict["healthcheck"] != nil
 
         // Optional: ports
         var ports: [(host: Int, container: Int)] = []
+        var portBindings: [String] = []
         if let portsArray = serviceDict["ports"] as? [Any] {
             for port in portsArray {
                 if let portString = port as? String {
+                    portBindings.append(portString)
                     if let parsed = parsePortMapping(portString) {
                         ports.append(parsed)
+                    }
+                } else if let portDict = port as? [String: Any] {
+                    let target = stringValue(portDict["target"])
+                    let published = stringValue(portDict["published"])
+                    let hostIP = stringValue(portDict["host_ip"])
+                    let protocolValue = stringValue(portDict["protocol"])
+                    let rendered = [hostIP, published, target]
+                        .compactMap { value in value?.isEmpty == false ? value : nil }
+                        .joined(separator: ":")
+                    if !rendered.isEmpty {
+                        portBindings.append(protocolValue.map { "\(rendered)/\($0)" } ?? rendered)
+                    }
+                    if let host = Int(published ?? ""), let container = Int(target ?? "") {
+                        ports.append((host, container))
                     }
                 }
             }
@@ -107,6 +126,13 @@ struct DockerComposeParser {
             dependsOn = Array(dependsDict.keys)
         }
 
+        var networks: [String] = []
+        if let networkArray = serviceDict["networks"] as? [Any] {
+            networks = networkArray.compactMap { $0 as? String }
+        } else if let networkDict = serviceDict["networks"] as? [String: Any] {
+            networks = Array(networkDict.keys)
+        }
+
         // Optional: resources
         var cpus = 2
         var memoryGB = 2
@@ -135,11 +161,16 @@ struct DockerComposeParser {
 
         return ComposeService(
             name: name,
+            containerName: containerName,
             image: image,
             ports: ports,
+            portBindings: portBindings,
             volumes: volumes,
             environment: environment,
             dependsOn: dependsOn,
+            networks: networks,
+            restartPolicy: restartPolicy,
+            healthcheck: hasHealthcheck,
             cpus: cpus,
             memoryGB: memoryGB,
             command: command
@@ -175,30 +206,91 @@ struct DockerComposeParser {
         return max(1, numValue / multiplier)
     }
 
+    private static func stringValue(_ value: Any?) -> String? {
+        switch value {
+        case let string as String:
+            return string
+        case let int as Int:
+            return String(int)
+        case let double as Double:
+            return String(Int(double))
+        default:
+            return nil
+        }
+    }
+
     // MARK: - Simple YAML Parser
 
     private static func parseYAML(_ content: String) throws -> Any {
         var result: [String: Any] = [:]
         var currentPath: [String] = []
-        var currentDict: [String: Any] = [:]
         var dictStack: [[String: Any]] = []
-        var pathStack: [[String]] = []
 
         let lines = content.components(separatedBy: .newlines)
+        var index = 0
+        var blockPath: [String]?
+        var blockStyle: String?
+        var blockIndent = 0
+        var blockLines: [String] = []
 
-        for line in lines {
+        func flushBlock() {
+            guard let path = blockPath else { return }
+            let joined: String
+            if blockStyle == "|" {
+                joined = blockLines.joined(separator: "\n")
+            } else {
+                joined = blockLines
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " ")
+            }
+            setNestedValue(&result, path: path, value: joined)
+            blockPath = nil
+            blockStyle = nil
+            blockLines = []
+        }
+
+        while index < lines.count {
+            let line = lines[index]
             // Skip empty lines and comments
             let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let indent = line.prefix(while: { $0 == " " || $0 == "\t" }).count
+
+            if blockPath != nil {
+                if trimmed.isEmpty {
+                    blockLines.append("")
+                    index += 1
+                    continue
+                }
+                if indent > blockIndent {
+                    blockLines.append(String(line.dropFirst(min(line.count, blockIndent + 2))))
+                    index += 1
+                    continue
+                }
+                flushBlock()
+                continue
+            }
+
             if trimmed.isEmpty || trimmed.hasPrefix("#") {
+                index += 1
                 continue
             }
 
             // Calculate indentation level
-            let indent = line.prefix(while: { $0 == " " || $0 == "\t" }).count
             let level = indent / 2
 
-            // Parse key-value
-            if let colonIndex = trimmed.firstIndex(of: ":") {
+            if trimmed.hasPrefix("- ") {
+                // Array item. Handle this before key/value parsing because
+                // Compose values often contain ':' inside strings, e.g.
+                // "${SERVER_PORT:-8080}:8080".
+                let value = String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces)
+                let parsedValue = parseValue(value)
+
+                var array = getNestedValue(result, path: currentPath) as? [Any] ?? []
+                array.append(parsedValue)
+                setNestedValue(&result, path: currentPath, value: array)
+            } else if let colonIndex = trimmed.firstIndex(of: ":") {
+                // Parse key-value
                 let key = String(trimmed[..<colonIndex]).trimmingCharacters(in: .whitespaces)
                 let valueStart = trimmed.index(after: colonIndex)
                 let value = valueStart < trimmed.endIndex
@@ -213,7 +305,12 @@ struct DockerComposeParser {
                     }
                 }
 
-                if value.isEmpty {
+                if value == ">" || value == "|" {
+                    blockPath = currentPath + [key]
+                    blockStyle = value
+                    blockIndent = indent
+                    blockLines = []
+                } else if value.isEmpty {
                     // This is a dictionary key
                     currentPath.append(key)
                     dictStack.append([:])
@@ -222,16 +319,12 @@ struct DockerComposeParser {
                     let parsedValue = parseValue(value)
                     setNestedValue(&result, path: currentPath + [key], value: parsedValue)
                 }
-            } else if trimmed.hasPrefix("- ") {
-                // Array item
-                let value = String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces)
-                let parsedValue = parseValue(value)
-
-                var array = getNestedValue(result, path: currentPath) as? [Any] ?? []
-                array.append(parsedValue)
-                setNestedValue(&result, path: currentPath, value: array)
             }
+
+            index += 1
         }
+
+        flushBlock()
 
         return result
     }

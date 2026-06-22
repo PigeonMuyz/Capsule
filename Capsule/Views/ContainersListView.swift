@@ -59,7 +59,9 @@ struct ContainersListColumn: View {
     @State private var expandedProjects: Set<String> = []
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            listHeader
+
             if viewModel.containers.isEmpty && composeManager.projects.isEmpty {
                 emptyState
             } else {
@@ -77,12 +79,41 @@ struct ContainersListColumn: View {
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
-        .columnToolbar(title: "Containers", subtitle: statusSubtitle, addHelp: "Add container, import, or compose") {
-            showingAddSheet = true
-        }
+        .ignoresSafeArea(.container, edges: .top)
         .sheet(isPresented: $showingAddSheet) {
             AddContainerView(viewModel: viewModel, composeManager: composeManager)
         }
+    }
+
+    private var listHeader: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Containers")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                Text(statusSubtitle)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                showingAddSheet = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.title3.weight(.medium))
+                    .frame(width: 34, height: 34)
+            }
+            .buttonStyle(.borderless)
+            .help("Add container, import, or compose")
+        }
+        .padding(.leading, 24)
+        .padding(.trailing, 16)
+        .padding(.top, 42)
+        .padding(.bottom, 14)
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 
     // MARK: - Compose grouping
@@ -370,20 +401,24 @@ struct ContainerDetailPanel: View {
                 Divider()
             }
 
-            ScrollView {
-                switch selectedTab {
-                case "info":
-                    InfoTabView(container: container)
-                case "logs":
-                    LogsTabView(container: container, viewModel: viewModel)
-                case "terminal":
-                    TerminalTabView(container: container)
-                case "files":
-                    FilesTabView(container: container)
-                default:
-                    EmptyView()
-                }
-            }
+            tabContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case "info":
+            InfoTabView(container: container, runtime: viewModel.runtime)
+        case "logs":
+            LogsTabView(container: container, viewModel: viewModel)
+        case "terminal":
+            TerminalTabView(container: container)
+        case "files":
+            FilesTabView(container: container, runtime: viewModel.runtime)
+        default:
+            EmptyView()
         }
     }
 
@@ -428,31 +463,132 @@ struct TabButton: View {
 
 struct InfoTabView: View {
     let container: ContainerSummary
+    let runtime: RuntimeCore
+    @State private var details: ContainerCLI.ContainerDetails?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            InfoSection(title: "General") {
-                InfoRow(label: "Name", value: container.name)
-                InfoRow(label: "ID", value: String(container.id.prefix(12)))
-                InfoRow(label: "Image", value: container.image)
-                InfoRow(label: "Status", value: container.status.displayName)
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                InfoSection(title: "General") {
+                    InfoRow(label: "Name", value: container.name)
+                    InfoRow(label: "ID", value: String(container.id.prefix(12)))
+                    InfoRow(label: "Image", value: container.image)
+                    InfoRow(label: "Status", value: container.status.displayName)
+                }
 
-            InfoSection(title: "Resources") {
-                InfoRow(label: "CPUs", value: "\(container.cpus)")
-                InfoRow(label: "Memory", value: formatMemory(container.memoryBytes))
-            }
+                InfoSection(title: "Resources") {
+                    InfoRow(label: "CPUs", value: "\(container.cpus)")
+                    InfoRow(label: "Memory", value: formatMemory(container.memoryBytes))
+                }
 
-            InfoSection(title: "Timestamps") {
-                InfoRow(label: "Created", value: formatDate(container.createdAt))
-                if let started = container.startedAt {
-                    InfoRow(label: "Started", value: formatDate(started))
+                InfoSection(title: "Timestamps") {
+                    InfoRow(label: "Created", value: formatDate(container.createdAt))
+                    if let started = container.startedAt {
+                        InfoRow(label: "Started", value: formatDate(started))
+                    }
+                }
+
+                if isLoading {
+                    HStack {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Loading inspect data...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if let errorMessage {
+                    InfoSection(title: "Inspect") {
+                        InfoRow(label: "Error", value: errorMessage)
+                    }
+                }
+
+                if let details {
+                    inspectSections(details)
+                }
+
+                Spacer(minLength: 16)
+            }
+            .padding()
+        }
+        .task(id: container.id) {
+            await loadDetails()
+        }
+    }
+
+    @ViewBuilder
+    private func inspectSections(_ details: ContainerCLI.ContainerDetails) -> some View {
+        InfoSection(title: "Command") {
+            InfoRow(label: "Executable", value: details.configuration.initProcess?.executable ?? "--")
+            let arguments = details.configuration.initProcess?.arguments?.joined(separator: " ") ?? ""
+            InfoRow(label: "Arguments", value: arguments.isEmpty ? "--" : arguments)
+            InfoRow(label: "Workdir", value: details.configuration.initProcess?.workingDirectory ?? "--")
+        }
+
+        InfoSection(title: "Mounts") {
+            let mounts = details.configuration.mounts
+            if mounts.isEmpty {
+                InfoRow(label: "Mounts", value: "None")
+            } else {
+                ForEach(mounts) { mount in
+                    InfoTwoColumnRow(
+                        leadingLabel: mount.source.isEmpty ? "(runtime)" : mount.source,
+                        trailingLabel: mount.destination
+                    )
                 }
             }
-
-            Spacer()
         }
-        .padding()
+
+        InfoSection(title: "Ports") {
+            let ports = details.configuration.publishedPorts
+            if ports.isEmpty {
+                InfoRow(label: "Ports", value: "None")
+            } else {
+                ForEach(ports) { port in
+                    let proto = port.proto ?? "tcp"
+                    let host = port.hostAddress ?? "0.0.0.0"
+                    let hostPort = port.hostPort.map(String.init) ?? "-"
+                    InfoTwoColumnRow(
+                        leadingLabel: "\(host):\(hostPort)",
+                        trailingLabel: "\(port.containerPort)/\(proto)"
+                    )
+                }
+            }
+        }
+
+        InfoSection(title: "Environment") {
+            let environment = details.configuration.initProcess?.environment ?? []
+            if environment.isEmpty {
+                InfoRow(label: "Environment", value: "None")
+            } else {
+                ForEach(environment, id: \.self) { item in
+                    let pair = splitEnvironment(item)
+                    InfoRow(label: LocalizedStringKey(pair.key), value: pair.value)
+                }
+            }
+        }
+    }
+
+    private func loadDetails() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            details = try await runtime.inspectContainer(id: container.id)
+        } catch is CancellationError {
+            return
+        } catch {
+            details = nil
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+
+    private func splitEnvironment(_ value: String) -> (key: String, value: String) {
+        guard let index = value.firstIndex(of: "=") else {
+            return (value, "")
+        }
+        return (String(value[..<index]), String(value[value.index(after: index)...]))
     }
 
     private func formatMemory(_ bytes: UInt64) -> String {
@@ -511,51 +647,179 @@ struct InfoRow: View {
     }
 }
 
+struct InfoTwoColumnRow: View {
+    let leadingLabel: String
+    let trailingLabel: String
+
+    var body: some View {
+        HStack(spacing: 16) {
+            Text(leadingLabel)
+                .font(.system(.subheadline, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+
+            Spacer(minLength: 16)
+
+            Text(trailingLabel)
+                .font(.system(.subheadline, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+        }
+    }
+}
+
 // MARK: - Logs Tab
 
 struct LogsTabView: View {
     let container: ContainerSummary
     @ObservedObject var viewModel: ContainerViewModel
-    @State private var logs: [String] = []
+    @State private var logs: [LogCacheStore.Entry] = []
+    @State private var retention = LogRetentionPolicy.defaultPolicy
+    @State private var showSettings = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            if logs.isEmpty {
-                Text("No logs yet")
+        VStack(spacing: 0) {
+            HStack {
+                Text("\(logs.count) cached lines")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Button {
+                    showSettings.toggle()
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showSettings) {
+                    logSettings
+                        .padding()
+                        .frame(width: 260)
+                }
+
+                Button {
+                    clearLogs()
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.plain)
+                .help("Clear cached logs")
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(Color(nsColor: .controlBackgroundColor))
+
+            Divider()
+
+            if logs.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "doc.text")
+                        .font(.system(size: 36))
+                        .foregroundStyle(.tertiary)
+                    Text("No cached logs yet")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ForEach(logs.indices, id: \.self) { index in
-                    Text(logs[index])
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(logs) { entry in
+                                HStack(alignment: .top, spacing: 10) {
+                                    Text(formatTimestamp(entry.timestamp))
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.tertiary)
+                                        .frame(width: 76, alignment: .leading)
+
+                                    Text(entry.content)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .textSelection(.enabled)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 3)
+                                .id(entry.id)
+                            }
+                        }
+                    }
+                    .background(Color(nsColor: .textBackgroundColor))
+                    .onChange(of: logs.count) { _, _ in
+                        if let last = logs.last {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
+                    }
                 }
             }
         }
-        .padding()
         .task(id: container.id) {
-            logs = []
+            await loadLogs()
+        }
+    }
 
-            // Load existing log history.
-            if let text = try? await viewModel.runtime.getContainerLogs(id: container.id, tail: 500) {
-                logs = text
-                    .split(separator: "\n", omittingEmptySubsequences: false)
-                    .map(String.init)
-                while logs.last == "" { logs.removeLast() }
+    private var logSettings: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Log Retention")
+                .font(.headline)
+
+            Stepper("Days: \(retention.days)", value: $retention.days, in: 1...90)
+            Stepper("Max lines: \(retention.maxEntries)", value: $retention.maxEntries, in: 100...50_000, step: 100)
+
+            Button("Apply") {
+                retention.save(containerID: container.id)
+                showSettings = false
+                Task { await reloadCache() }
             }
+            .buttonStyle(.borderedProminent)
+        }
+    }
 
-            // Follow new output for running containers.
-            guard container.status == .running else { return }
-            do {
-                for try await line in viewModel.runtime.streamContainerLogs(id: container.id) {
-                    logs.append(line)
-                    if logs.count > 2000 { logs.removeFirst(logs.count - 2000) }
-                }
-            } catch {
-                // Stream ended or container stopped.
+    private func loadLogs() async {
+        retention = LogRetentionPolicy.load(containerID: container.id)
+        await reloadCache()
+
+        if logs.isEmpty, let text = try? await viewModel.runtime.getContainerLogs(id: container.id, tail: retention.maxEntries) {
+            for line in text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) where !line.isEmpty {
+                await appendLog(line)
             }
         }
+
+        guard container.status == .running else { return }
+        do {
+            for try await line in viewModel.runtime.streamContainerLogs(id: container.id) {
+                await appendLog(line)
+            }
+        } catch {
+            // Stream ended or container stopped.
+        }
+    }
+
+    private func appendLog(_ line: String) async {
+        let entry = LogCacheStore.Entry(content: line)
+        await LogCacheStore.shared.append(entry, for: container.id, retention: retention)
+        logs.append(entry)
+        if logs.count > retention.maxEntries {
+            logs.removeFirst(logs.count - retention.maxEntries)
+        }
+    }
+
+    private func reloadCache() async {
+        logs = await LogCacheStore.shared.entries(for: container.id, retention: retention)
+    }
+
+    private func clearLogs() {
+        Task {
+            await LogCacheStore.shared.clear(containerID: container.id)
+            logs = []
+        }
+    }
+
+    private func formatTimestamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
     }
 }
 
@@ -579,7 +843,7 @@ struct TerminalTabView: View {
                 .padding(8)
 
                 ContainerTerminalRepresentable(containerID: container.id)
-                    .frame(minHeight: 420)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         } else {
             VStack(spacing: 8) {
@@ -602,16 +866,10 @@ struct TerminalTabView: View {
 
 struct FilesTabView: View {
     let container: ContainerSummary
+    let runtime: RuntimeCore
 
     var body: some View {
-        VStack {
-            Text("File Browser")
-                .foregroundStyle(.secondary)
-            Text("Coming soon")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
+        ContainerFilesView(containerID: container.id, containerName: container.name, runtime: runtime)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

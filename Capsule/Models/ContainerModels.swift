@@ -13,13 +13,37 @@ struct ContainerSpec: Codable, Hashable, Identifiable {
     var command: [String]          // Startup command
     var workingDirectory: String   // Working directory (default: "/")
     var environment: [String: String] = [:]
+    var envFiles: [String] = []
     var publishedPorts: [String] = []   // e.g. "8080:80" or "127.0.0.1:5432:5432"
+    var publishedSockets: [String] = []
     var network: String? = nil
     var platform: String? = nil         // e.g. "linux/arm64"; nil = CLI default
     var volumeBinds: [String] = []      // e.g. "/host/path:/container/path"
     var mounts: [MountSpec] = []
+    var entrypoint: String? = nil
+    var user: String? = nil
+    var uid: String? = nil
+    var gid: String? = nil
+    var labels: [String] = []
+    var ulimits: [String] = []
+    var dnsServers: [String] = []
+    var dnsSearchDomains: [String] = []
+    var dnsOptions: [String] = []
+    var noDNS: Bool = false
+    var tmpfs: [String] = []
+    var shmSize: String? = nil
+    var capAdd: [String] = []
+    var capDrop: [String] = []
+    var interactive: Bool = false
+    var tty: Bool = false
+    var sshAgent: Bool = false
+    var virtualization: Bool = false
     var rosettaEnabled: Bool = false
+    var removeAfterStop: Bool = false
+    var readOnlyRootfs: Bool = false
+    var useInit: Bool = false
     var autostart: Bool = false
+    var restartPolicy: RestartPolicy = .no
 
     init(
         id: String = UUID().uuidString,
@@ -40,6 +64,26 @@ struct ContainerSpec: Codable, Hashable, Identifiable {
         self.command = command
         self.workingDirectory = workingDirectory
     }
+}
+
+enum RestartPolicy: String, Codable, Hashable, CaseIterable, Identifiable {
+    case no
+    case always
+    case unlessStopped = "unless-stopped"
+    case onFailure = "on-failure"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .no: return "No"
+        case .always: return "Always"
+        case .unlessStopped: return "Unless stopped"
+        case .onFailure: return "On failure"
+        }
+    }
+
+    var shouldPersist: Bool { self != .no }
 }
 
 // MARK: - Mount Specification

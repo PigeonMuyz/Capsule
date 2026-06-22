@@ -86,11 +86,37 @@ actor RuntimeCore {
                 memoryMB: memoryMB,
                 command: spec.command.isEmpty ? nil : spec.command,
                 environment: spec.environment,
+                envFiles: spec.envFiles,
                 ports: spec.publishedPorts,
+                sockets: spec.publishedSockets,
                 network: spec.network,
                 platform: spec.platform,
-                volumes: spec.volumeBinds
+                volumes: spec.volumeBinds,
+                workingDirectory: spec.workingDirectory,
+                entrypoint: spec.entrypoint,
+                user: spec.user,
+                uid: spec.uid,
+                gid: spec.gid,
+                labels: spec.labels,
+                ulimits: spec.ulimits,
+                dnsServers: spec.dnsServers,
+                dnsSearchDomains: spec.dnsSearchDomains,
+                dnsOptions: spec.dnsOptions,
+                noDNS: spec.noDNS,
+                tmpfs: spec.tmpfs,
+                shmSize: spec.shmSize,
+                capAdd: spec.capAdd,
+                capDrop: spec.capDrop,
+                interactive: spec.interactive,
+                tty: spec.tty,
+                sshAgent: spec.sshAgent,
+                virtualization: spec.virtualization,
+                rosetta: spec.rosettaEnabled,
+                removeAfterStop: spec.removeAfterStop,
+                readOnlyRootfs: spec.readOnlyRootfs,
+                useInit: spec.useInit
             )
+            RestartPolicyStore.shared.save(spec.restartPolicy, for: containerID)
 
             logger.info("Container created with ID: \(containerID)")
 
@@ -123,6 +149,7 @@ actor RuntimeCore {
         logger.info("Starting container: \(id)")
 
         do {
+            RestartPolicyStore.shared.markManuallyStopped(id, stopped: false)
             try await cli.startContainer(id: id)
             logger.info("Container started: \(id)")
         } catch {
@@ -141,6 +168,7 @@ actor RuntimeCore {
         logger.info("Stopping container: \(id)")
 
         do {
+            RestartPolicyStore.shared.markManuallyStopped(id, stopped: true)
             try await cli.stopContainer(id: id)
             logger.info("Container stopped: \(id)")
         } catch {
@@ -160,6 +188,7 @@ actor RuntimeCore {
 
         do {
             try await cli.deleteContainer(id: id)
+            RestartPolicyStore.shared.remove(containerID: id)
             logger.info("Container deleted: \(id)")
         } catch {
             logger.error("Failed to delete container: \(error)")
@@ -176,6 +205,15 @@ actor RuntimeCore {
             throw ContainerError.containerNotFound(id)
         }
         return container
+    }
+
+    /// Inspect a container and return rich configuration details.
+    func inspectContainer(id: String) async throws -> ContainerCLI.ContainerDetails {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        return try await cli.inspectContainer(id: id)
     }
 
     /// Get container logs
@@ -204,6 +242,42 @@ actor RuntimeCore {
                 continuation.finish()
             }
         }
+    }
+
+    /// List files in a running container.
+    func listFiles(containerID: String, path: String) async throws -> [ContainerCLI.FileInfo] {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        return try await cli.listFiles(containerID: containerID, path: path)
+    }
+
+    /// Delete a file or directory inside a running container.
+    func deleteFile(containerID: String, path: String) async throws {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        try await cli.deleteFile(containerID: containerID, path: path)
+    }
+
+    /// Copy a container file to a local URL.
+    func copyFileFromContainer(containerID: String, path: String, destination: URL) async throws {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        try await cli.copyFileFromContainer(containerID: containerID, path: path, destination: destination)
+    }
+
+    /// Copy a local file back into a running container.
+    func copyFileToContainer(containerID: String, source: URL, path: String) async throws {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        try await cli.copyFileToContainer(containerID: containerID, source: source, path: path)
     }
 
     // MARK: - Images
@@ -338,6 +412,8 @@ actor RuntimeCore {
             return .created
         case "paused":
             return .stopped // Map paused to stopped for now
+        case "failed", "error":
+            return .failed
         default:
             return .stopped
         }

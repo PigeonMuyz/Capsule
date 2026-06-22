@@ -35,7 +35,16 @@ struct ImagesListColumn: View {
         .background(Color(nsColor: .controlBackgroundColor))
         .columnToolbar(title: "Images", addHelp: "Pull Image") { showingPullSheet = true }
         .sheet(isPresented: $showingPullSheet) {
-            PullImageView { _ in Task { await loadImages() } }
+            PullImageView { reference in
+                Task {
+                    do {
+                        try await viewModel.runtime.pullImage(reference: reference)
+                        await loadImages()
+                    } catch {
+                        errorMessage = "Failed to pull image: \(error.localizedDescription)"
+                    }
+                }
+            }
         }
         .task {
             while !Task.isCancelled {
@@ -251,14 +260,20 @@ struct PullImageView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Image Reference") {
-                    TextField("nginx:latest", text: $imageReference)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.body, design: .monospaced))
-
-                    Text("Examples: nginx:latest, postgres:14, node:18-alpine")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Section("Image") {
+                    HStack {
+                        TextField("Image Reference", text: $imageReference, prompt: Text("nginx:latest"))
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                        if let sourceTag {
+                            Text(sourceTag)
+                                .font(.caption)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.accentColor.opacity(0.16))
+                                .clipShape(Capsule())
+                        }
+                    }
                 }
 
                 if isPulling {
@@ -280,11 +295,20 @@ struct PullImageView: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Pull") { pullImage() }
-                        .disabled(imageReference.isEmpty || isPulling)
+                        .disabled(imageReference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isPulling)
                 }
             }
-            .frame(width: 500, height: 200)
+            .frame(width: 520, height: 240)
         }
+    }
+
+    private var sourceTag: String? {
+        let reference = imageReference.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if reference.hasPrefix("ghcr.io/") { return "GitHub" }
+        if reference.hasPrefix("docker.io/") || !reference.contains("/") || reference.hasPrefix("library/") {
+            return "Docker Hub"
+        }
+        return nil
     }
 
     private func pullImage() {

@@ -192,8 +192,8 @@ struct CreateNetworkView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Network Configuration") {
-                    TextField("Network Name", text: $networkName)
+                Section("Network") {
+                    TextField("Name", text: $networkName, prompt: Text("backend"))
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
 
@@ -203,10 +203,6 @@ struct CreateNetworkView: View {
                         Text("Host").tag("host")
                     }
                     .pickerStyle(.segmented)
-
-                    Text("Network names must be lowercase and can contain letters, numbers, hyphens, and underscores")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
 
                 if isCreating {
@@ -231,7 +227,7 @@ struct CreateNetworkView: View {
                         .disabled(networkName.isEmpty || isCreating)
                 }
             }
-            .frame(width: 500, height: 300)
+            .frame(width: 520, height: 300)
         }
     }
 

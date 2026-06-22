@@ -192,7 +192,8 @@ struct ContainerDetailView: View {
 
                     ContainerFilesView(
                         containerID: container.id,
-                        containerName: container.name
+                        containerName: container.name,
+                        runtime: viewModel.runtime
                     )
                     .tag(3)
 

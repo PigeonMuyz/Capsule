@@ -98,10 +98,35 @@ actor ContainerCLI {
         memoryMB: Int,
         command: [String]? = nil,
         environment: [String: String] = [:],
+        envFiles: [String] = [],
         ports: [String] = [],
+        sockets: [String] = [],
         network: String? = nil,
         platform: String? = nil,
-        volumes: [String] = []
+        volumes: [String] = [],
+        workingDirectory: String? = nil,
+        entrypoint: String? = nil,
+        user: String? = nil,
+        uid: String? = nil,
+        gid: String? = nil,
+        labels: [String] = [],
+        ulimits: [String] = [],
+        dnsServers: [String] = [],
+        dnsSearchDomains: [String] = [],
+        dnsOptions: [String] = [],
+        noDNS: Bool = false,
+        tmpfs: [String] = [],
+        shmSize: String? = nil,
+        capAdd: [String] = [],
+        capDrop: [String] = [],
+        interactive: Bool = false,
+        tty: Bool = false,
+        sshAgent: Bool = false,
+        virtualization: Bool = false,
+        rosetta: Bool = false,
+        removeAfterStop: Bool = false,
+        readOnlyRootfs: Bool = false,
+        useInit: Bool = false
     ) async throws -> String {
         logger.info("Creating container: \(name) with image: \(image)")
 
@@ -116,8 +141,14 @@ actor ContainerCLI {
         for (key, value) in environment {
             args.append(contentsOf: ["--env", "\(key)=\(value)"])
         }
+        for envFile in envFiles where !envFile.isEmpty {
+            args.append(contentsOf: ["--env-file", envFile])
+        }
         for port in ports where !port.isEmpty {
             args.append(contentsOf: ["--publish", port])
+        }
+        for socket in sockets where !socket.isEmpty {
+            args.append(contentsOf: ["--publish-socket", socket])
         }
         for volume in volumes where !volume.isEmpty {
             args.append(contentsOf: ["--volume", volume])
@@ -127,6 +158,75 @@ actor ContainerCLI {
         }
         if let platform, !platform.isEmpty, platform != "auto" {
             args.append(contentsOf: ["--platform", platform])
+        }
+        if let workingDirectory, !workingDirectory.isEmpty, workingDirectory != "/" {
+            args.append(contentsOf: ["--workdir", workingDirectory])
+        }
+        if let entrypoint, !entrypoint.isEmpty {
+            args.append(contentsOf: ["--entrypoint", entrypoint])
+        }
+        if let user, !user.isEmpty {
+            args.append(contentsOf: ["--user", user])
+        }
+        if let uid, !uid.isEmpty {
+            args.append(contentsOf: ["--uid", uid])
+        }
+        if let gid, !gid.isEmpty {
+            args.append(contentsOf: ["--gid", gid])
+        }
+        for label in labels where !label.isEmpty {
+            args.append(contentsOf: ["--label", label])
+        }
+        for ulimit in ulimits where !ulimit.isEmpty {
+            args.append(contentsOf: ["--ulimit", ulimit])
+        }
+        for dns in dnsServers where !dns.isEmpty {
+            args.append(contentsOf: ["--dns", dns])
+        }
+        for domain in dnsSearchDomains where !domain.isEmpty {
+            args.append(contentsOf: ["--dns-search", domain])
+        }
+        for option in dnsOptions where !option.isEmpty {
+            args.append(contentsOf: ["--dns-option", option])
+        }
+        if noDNS {
+            args.append("--no-dns")
+        }
+        for path in tmpfs where !path.isEmpty {
+            args.append(contentsOf: ["--tmpfs", path])
+        }
+        if let shmSize, !shmSize.isEmpty {
+            args.append(contentsOf: ["--shm-size", shmSize])
+        }
+        for cap in capAdd where !cap.isEmpty {
+            args.append(contentsOf: ["--cap-add", cap])
+        }
+        for cap in capDrop where !cap.isEmpty {
+            args.append(contentsOf: ["--cap-drop", cap])
+        }
+        if interactive {
+            args.append("--interactive")
+        }
+        if tty {
+            args.append("--tty")
+        }
+        if sshAgent {
+            args.append("--ssh")
+        }
+        if virtualization {
+            args.append("--virtualization")
+        }
+        if rosetta {
+            args.append("--rosetta")
+        }
+        if removeAfterStop {
+            args.append("--rm")
+        }
+        if readOnlyRootfs {
+            args.append("--read-only")
+        }
+        if useInit {
+            args.append("--init")
         }
 
         args.append(image)
@@ -149,7 +249,7 @@ actor ContainerCLI {
 
         var args = ["logs", id]
         if let tail = tail {
-            args.append(contentsOf: ["--tail", "\(tail)"])
+            args.append(contentsOf: ["-n", "\(tail)"])
         }
 
         let output = try await runCommand(args)
@@ -190,15 +290,68 @@ actor ContainerCLI {
 
     struct ContainerDetails: Codable {
         let id: String
-        let name: String
-        let image: String
-        let state: String
-        let cpus: Int
-        let memory: Int
-        let created: String?
-        let started: String?
+        let configuration: Configuration
+        let status: Status
 
-        // Add more fields as needed based on actual container inspect output
+        struct Configuration: Codable {
+            let id: String
+            let image: Image
+            let initProcess: InitProcess?
+            let mounts: [Mount]
+            let publishedPorts: [PublishedPort]
+            let networks: [Network]
+            let platform: Platform?
+            let resources: Resources?
+            let creationDate: String?
+
+            struct Image: Codable {
+                let reference: String
+            }
+
+            struct InitProcess: Codable {
+                let executable: String?
+                let arguments: [String]?
+                let environment: [String]?
+                let workingDirectory: String?
+            }
+
+            struct Mount: Codable, Identifiable {
+                var id: String { "\(source)|\(destination)" }
+                let source: String
+                let destination: String
+                let options: [String]?
+            }
+
+            struct PublishedPort: Codable, Identifiable {
+                var id: String { "\(hostAddress ?? ""):\(hostPort ?? 0):\(containerPort)/\(proto ?? "tcp")" }
+                let containerPort: Int
+                let count: Int?
+                let hostAddress: String?
+                let hostPort: Int?
+                let proto: String?
+            }
+
+            struct Network: Codable, Identifiable {
+                var id: String { network }
+                let network: String
+            }
+
+            struct Platform: Codable {
+                let architecture: String
+                let os: String
+                let variant: String?
+            }
+
+            struct Resources: Codable {
+                let cpus: Int?
+                let memoryInBytes: Int?
+            }
+        }
+
+        struct Status: Codable {
+            let state: String
+            let startedDate: String?
+        }
     }
 
     /// Get detailed information about a container
@@ -212,12 +365,57 @@ actor ContainerCLI {
         }
 
         do {
-            let details = try JSONDecoder().decode(ContainerDetails.self, from: data)
-            return details
+            if let details = try JSONDecoder().decode([ContainerDetails].self, from: data).first {
+                return details
+            }
+            throw CLIError.invalidOutput("Container inspect returned no records")
         } catch {
             logger.error("Failed to parse container details: \(error)")
             throw CLIError.parseError(error.localizedDescription)
         }
+    }
+
+    // MARK: - Files
+
+    struct FileInfo: Identifiable, Hashable {
+        let id: String
+        let name: String
+        let path: String
+        let permissions: String
+        let owner: String
+        let group: String
+        let size: Int64
+        let modified: String
+        let isDirectory: Bool
+        let isSymlink: Bool
+        let symlinkTarget: String?
+    }
+
+    /// List files in a running container using `container exec ls -la`.
+    func listFiles(containerID: String, path: String) async throws -> [FileInfo] {
+        logger.info("Listing files for container: \(containerID), path: \(path)")
+        let output = try await runCommand(["exec", containerID, "ls", "-la", path])
+        return output
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .compactMap { parseFileLine(String($0), parentPath: path) }
+    }
+
+    /// Delete a file or directory inside a running container.
+    func deleteFile(containerID: String, path: String) async throws {
+        logger.info("Deleting file in container: \(containerID), path: \(path)")
+        _ = try await runCommand(["exec", containerID, "rm", "-rf", path])
+    }
+
+    /// Copy a file from a running container to a local destination.
+    func copyFileFromContainer(containerID: String, path: String, destination: URL) async throws {
+        logger.info("Copying file from container: \(containerID), path: \(path)")
+        _ = try await runCommand(["copy", "\(containerID):\(path)", destination.path])
+    }
+
+    /// Copy a local file back into a running container.
+    func copyFileToContainer(containerID: String, source: URL, path: String) async throws {
+        logger.info("Copying local file to container: \(containerID), path: \(path)")
+        _ = try await runCommand(["copy", source.path, "\(containerID):\(path)"])
     }
 
     // MARK: - Images
@@ -538,6 +736,56 @@ actor ContainerCLI {
 
     // MARK: - Helper Methods
 
+    private func parseFileLine(_ line: String, parentPath: String) -> FileInfo? {
+        guard !line.isEmpty, !line.hasPrefix("total ") else { return nil }
+
+        let pattern = #"^(\S+)\s+\d+\s+(\S+)\s+(\S+)\s+(\d+)\s+(.{12})\s+(.+)$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+              match.numberOfRanges == 7 else {
+            return nil
+        }
+
+        func value(_ index: Int) -> String {
+            guard let range = Range(match.range(at: index), in: line) else { return "" }
+            return String(line[range])
+        }
+
+        let permissions = value(1)
+        let owner = value(2)
+        let group = value(3)
+        let size = Int64(value(4)) ?? 0
+        let modified = value(5).trimmingCharacters(in: .whitespaces)
+        let rawName = value(6)
+
+        guard rawName != "." else { return nil }
+
+        let parts = rawName.components(separatedBy: " -> ")
+        let name = parts.first ?? rawName
+        guard name != ".." else { return nil }
+
+        let cleanParent = parentPath == "/" ? "" : parentPath
+        let fullPath = "\(cleanParent)/\(name)"
+
+        return FileInfo(
+            id: fullPath,
+            name: name,
+            path: fullPath,
+            permissions: permissions,
+            owner: owner,
+            group: group,
+            size: size,
+            modified: modified,
+            isDirectory: permissions.hasPrefix("d"),
+            isSymlink: permissions.hasPrefix("l"),
+            symlinkTarget: parts.count > 1 ? parts.dropFirst().joined(separator: " -> ") : nil
+        )
+    }
+
+    private func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
     /// Execute a container command and return output
     private func runCommand(_ arguments: [String]) async throws -> String {
         return try await withCheckedThrowingContinuation { continuation in
@@ -546,8 +794,7 @@ actor ContainerCLI {
             // Use /bin/zsh to execute container command with full path
             process.executableURL = URL(fileURLWithPath: "/bin/zsh")
 
-            // Build command string without extra quotes
-            let commandString = "/usr/local/bin/container " + arguments.joined(separator: " ")
+            let commandString = "/usr/local/bin/container " + arguments.map(shellQuote).joined(separator: " ")
             process.arguments = ["-c", commandString]
 
             let outputPipe = Pipe()

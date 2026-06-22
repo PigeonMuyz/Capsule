@@ -19,6 +19,7 @@ class ContainerViewModel: ObservableObject {
 
     let runtime = RuntimeCore()
     private var updateTask: Task<Void, Never>?
+    private var restartAttempts: [String: Date] = [:]
 
     // MARK: - Initialization
 
@@ -127,6 +128,7 @@ class ContainerViewModel: ObservableObject {
         do {
             logger.info("Starting container: \(id)")
 
+            RestartPolicyStore.shared.markManuallyStopped(id, stopped: false)
             try await runtime.startContainer(id: id)
 
             await refreshContainers()
@@ -142,6 +144,7 @@ class ContainerViewModel: ObservableObject {
         do {
             logger.info("Stopping container: \(id)")
 
+            RestartPolicyStore.shared.markManuallyStopped(id, stopped: true)
             try await runtime.stopContainer(id: id)
 
             await refreshContainers()
@@ -219,14 +222,54 @@ class ContainerViewModel: ObservableObject {
         logger.info("Clear logs requested for container: \(containerID)")
     }
 
+    func refresh() async {
+        await refreshContainers()
+    }
+
     // MARK: - Private Methods
 
     private func refreshContainers() async {
         do {
             containers = try await runtime.listContainers()
+            await applyRestartPolicies()
         } catch {
             logger.error("Failed to refresh containers: \(error)")
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func applyRestartPolicies() async {
+        for container in containers {
+            let policy = RestartPolicyStore.shared.policy(for: container.id)
+            guard shouldRestart(container: container, policy: policy) else { continue }
+
+            let now = Date()
+            if let lastAttempt = restartAttempts[container.id], now.timeIntervalSince(lastAttempt) < 10 {
+                continue
+            }
+
+            restartAttempts[container.id] = now
+            do {
+                logger.info("Applying restart policy \(policy.rawValue) for container: \(container.id)")
+                RestartPolicyStore.shared.markManuallyStopped(container.id, stopped: false)
+                try await runtime.startContainer(id: container.id)
+            } catch {
+                logger.warning("Restart policy failed for container \(container.id): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func shouldRestart(container: ContainerSummary, policy: RestartPolicy) -> Bool {
+        switch policy {
+        case .no:
+            return false
+        case .always:
+            return container.status == .stopped || container.status == .failed
+        case .unlessStopped:
+            return !RestartPolicyStore.shared.isManuallyStopped(container.id)
+                && (container.status == .stopped || container.status == .failed)
+        case .onFailure:
+            return container.status == .failed
         }
     }
 

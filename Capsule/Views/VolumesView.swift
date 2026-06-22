@@ -187,6 +187,7 @@ struct VolumeDetailPanel: View {
 struct CreateVolumeView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var volumeName = ""
+    @State private var purpose = "General"
     @State private var isCreating = false
 
     let onCreate: (String) -> Void
@@ -194,14 +195,17 @@ struct CreateVolumeView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Volume Name") {
-                    TextField("my-volume", text: $volumeName)
+                Section("Volume") {
+                    TextField("Name", text: $volumeName, prompt: Text("my-volume"))
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
 
-                    Text("Volume names must be lowercase and can contain letters, numbers, hyphens, and underscores")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Picker("Purpose", selection: $purpose) {
+                        Text("General").tag("General")
+                        Text("Database data").tag("Database data")
+                        Text("App cache").tag("App cache")
+                        Text("Static files").tag("Static files")
+                    }
                 }
 
                 if isCreating {
@@ -226,7 +230,7 @@ struct CreateVolumeView: View {
                         .disabled(volumeName.isEmpty || isCreating)
                 }
             }
-            .frame(width: 500, height: 250)
+            .frame(width: 520, height: 300)
         }
     }
 

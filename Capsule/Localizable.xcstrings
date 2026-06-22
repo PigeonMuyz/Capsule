@@ -4,6 +4,9 @@
     "" : {
 
     },
+    "-> %@" : {
+
+    },
     ".." : {
 
     },
@@ -14,6 +17,12 @@
 
     },
     "/ %@" : {
+
+    },
+    "/path/to/.env" : {
+
+    },
+    "/run" : {
 
     },
     "%@-%@" : {
@@ -32,6 +41,12 @@
     "%lld" : {
 
     },
+    "%lld cached lines" : {
+
+    },
+    "%lld containers" : {
+
+    },
     "%lld items" : {
 
     },
@@ -45,6 +60,12 @@
 
     },
     "$" : {
+
+    },
+    "1.1.1.1" : {
+
+    },
+    "64MB" : {
 
     },
     "A machine is a full Linux VM you can log into" : {
@@ -112,6 +133,9 @@
           }
         }
       }
+    },
+    "Add capabilities" : {
+
     },
     "Add Container" : {
       "localizations" : {
@@ -185,7 +209,28 @@
         }
       }
     },
+    "Advanced" : {
+
+    },
+    "After parsing, Capsule fills the Configure form so every field can be reviewed and edited before creation." : {
+
+    },
+    "ALL" : {
+
+    },
+    "Allocate TTY" : {
+
+    },
     "alpine:3.22" : {
+
+    },
+    "App cache" : {
+
+    },
+    "Apply" : {
+
+    },
+    "Arguments" : {
 
     },
     "Auto Refresh" : {
@@ -213,7 +258,13 @@
     "Auto-scroll" : {
 
     },
+    "backend" : {
+
+    },
     "Bridge" : {
+
+    },
+    "Build manually" : {
 
     },
     "Cancel" : {
@@ -237,6 +288,9 @@
           }
         }
       }
+    },
+    "Capsule creates the container first. Use Create & Start when you want the payload to run immediately." : {
+
     },
     "Changing the language takes effect after restarting Capsule." : {
       "localizations" : {
@@ -282,6 +336,9 @@
         }
       }
     },
+    "Clear cached logs" : {
+
+    },
     "Clear logs" : {
       "localizations" : {
         "ja" : {
@@ -304,7 +361,11 @@
         }
       }
     },
+    "com.example.key=value" : {
+
+    },
     "Coming soon" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -349,6 +410,9 @@
       }
     },
     "Compose" : {
+
+    },
+    "Compose Services" : {
 
     },
     "Configure" : {
@@ -402,6 +466,7 @@
 
     },
     "Container Information" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -422,6 +487,9 @@
           }
         }
       }
+    },
+    "Container name" : {
+
     },
     "Container not running" : {
 
@@ -473,6 +541,12 @@
         }
       }
     },
+    "Convert a command" : {
+
+    },
+    "Copy Path" : {
+
+    },
     "CPUs" : {
 
     },
@@ -497,6 +571,9 @@
           }
         }
       }
+    },
+    "Create & Start" : {
+
     },
     "Create Container" : {
 
@@ -678,6 +755,12 @@
         }
       }
     },
+    "Database data" : {
+
+    },
+    "Days: %lld" : {
+
+    },
     "Default" : {
       "localizations" : {
         "ja" : {
@@ -721,6 +804,9 @@
           }
         }
       }
+    },
+    "Depends on" : {
+
     },
     "Details" : {
       "localizations" : {
@@ -766,10 +852,25 @@
         }
       }
     },
+    "Disable DNS configuration" : {
+
+    },
+    "DNS options" : {
+
+    },
+    "DNS search domains" : {
+
+    },
+    "DNS servers" : {
+
+    },
     "Docker" : {
 
     },
     "Docker Run" : {
+
+    },
+    "docker.io/library/nginx:latest" : {
 
     },
     "Done" : {
@@ -816,10 +917,22 @@
         }
       }
     },
-    "e.g. nginx:latest" : {
+    "Drop capabilities" : {
+
+    },
+    "Edit in External Editor" : {
+
+    },
+    "Enable Rosetta for amd64 images" : {
 
     },
     "Enter command..." : {
+
+    },
+    "Entrypoint" : {
+
+    },
+    "Env files" : {
 
     },
     "Environment" : {
@@ -866,16 +979,14 @@
         }
       }
     },
-    "Example: docker run -d --name my-nginx -p 8080:80 nginx:latest" : {
-
-    },
-    "Examples: nginx:latest, postgres:14, node:18-alpine" : {
+    "Executable" : {
 
     },
     "External Terminal" : {
 
     },
     "File Browser" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -896,9 +1007,6 @@
           }
         }
       }
-    },
-    "File operations coming soon" : {
-
     },
     "Files" : {
       "localizations" : {
@@ -922,6 +1030,9 @@
         }
       }
     },
+    "Forward SSH agent" : {
+
+    },
     "General" : {
       "localizations" : {
         "ja" : {
@@ -944,13 +1055,19 @@
         }
       }
     },
+    "GID" : {
+
+    },
+    "Has healthcheck" : {
+
+    },
     "host" : {
 
     },
     "Host" : {
 
     },
-    "Host path" : {
+    "Host path or volume" : {
 
     },
     "How often to refresh status (1–10 seconds)." : {
@@ -1044,6 +1161,12 @@
         }
       }
     },
+    "Import Compose" : {
+
+    },
+    "Import services" : {
+
+    },
     "Info" : {
       "localizations" : {
         "ja" : {
@@ -1065,6 +1188,9 @@
           }
         }
       }
+    },
+    "Inspect" : {
+
     },
     "Installed" : {
       "localizations" : {
@@ -1088,6 +1214,9 @@
         }
       }
     },
+    "Interactive stdin" : {
+
+    },
     "IP" : {
 
     },
@@ -1095,6 +1224,9 @@
 
     },
     "KEY" : {
+
+    },
+    "Labels" : {
 
     },
     "Language" : {
@@ -1120,6 +1252,7 @@
       }
     },
     "Leave empty to use the image default" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1140,6 +1273,9 @@
           }
         }
       }
+    },
+    "Lifecycle" : {
+
     },
     "Linux" : {
 
@@ -1165,6 +1301,12 @@
           }
         }
       }
+    },
+    "Loading inspect data..." : {
+
+    },
+    "Log Retention" : {
+
     },
     "Logs" : {
       "localizations" : {
@@ -1235,6 +1377,9 @@
         }
       }
     },
+    "Max lines: %lld" : {
+
+    },
     "Memory" : {
       "localizations" : {
         "ja" : {
@@ -1258,6 +1403,7 @@
       }
     },
     "Mode" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1278,6 +1424,9 @@
           }
         }
       }
+    },
+    "Modified" : {
+
     },
     "Mount Point" : {
       "localizations" : {
@@ -1305,9 +1454,6 @@
 
     },
     "my-app" : {
-
-    },
-    "my-container" : {
 
     },
     "my-machine" : {
@@ -1338,7 +1484,13 @@
         }
       }
     },
+    "name or uid:gid" : {
+
+    },
     "NAT" : {
+
+    },
+    "NET_ADMIN" : {
 
     },
     "Network" : {
@@ -1364,6 +1516,7 @@
       }
     },
     "Network Configuration" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1385,10 +1538,8 @@
         }
       }
     },
-    "Network Name" : {
-
-    },
     "Network names must be lowercase and can contain letters, numbers, hyphens, and underscores" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1477,6 +1628,9 @@
       }
     },
     "nginx:latest" : {
+
+    },
+    "No cached logs yet" : {
 
     },
     "No Containers" : {
@@ -1636,6 +1790,9 @@
         }
       }
     },
+    "nofile=1024:2048" : {
+
+    },
     "None running" : {
       "localizations" : {
         "ja" : {
@@ -1702,6 +1859,18 @@
         }
       }
     },
+    "One KEY=value per line" : {
+
+    },
+    "One mapping per line" : {
+
+    },
+    "One mount per line" : {
+
+    },
+    "Open" : {
+
+    },
     "Open in Terminal" : {
 
     },
@@ -1727,7 +1896,17 @@
         }
       }
     },
+    "Parse" : {
+
+    },
+    "Parse to Configure" : {
+
+    },
+    "Paste Docker Run" : {
+
+    },
     "Paste your Docker run command:" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1750,6 +1929,7 @@
       }
     },
     "Paste your docker-compose.yml content:" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1793,6 +1973,12 @@
         }
       }
     },
+    "Payload" : {
+
+    },
+    "Permissions" : {
+
+    },
     "Platform" : {
       "localizations" : {
         "ja" : {
@@ -1815,7 +2001,17 @@
         }
       }
     },
+    "Ports" : {
+
+    },
+    "Preview" : {
+
+    },
+    "Project" : {
+
+    },
     "Project Name:" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1836,6 +2032,12 @@
           }
         }
       }
+    },
+    "Project networks" : {
+
+    },
+    "Project volumes" : {
+
     },
     "Published Ports" : {
       "localizations" : {
@@ -1858,6 +2060,9 @@
           }
         }
       }
+    },
+    "Published sockets" : {
+
     },
     "Pull" : {
       "localizations" : {
@@ -1924,6 +2129,12 @@
           }
         }
       }
+    },
+    "Purpose" : {
+
+    },
+    "Read-only root filesystem" : {
+
     },
     "Refresh" : {
       "localizations" : {
@@ -2013,6 +2224,9 @@
         }
       }
     },
+    "Remove after stop" : {
+
+    },
     "Remove All" : {
       "localizations" : {
         "ja" : {
@@ -2078,6 +2292,15 @@
           }
         }
       }
+    },
+    "Restart" : {
+
+    },
+    "Right-click a file for actions" : {
+
+    },
+    "Run with init process" : {
+
     },
     "Running" : {
       "localizations" : {
@@ -2151,6 +2374,12 @@
         }
       }
     },
+    "Select a service" : {
+
+    },
+    "Service name" : {
+
+    },
     "Services" : {
       "localizations" : {
         "ja" : {
@@ -2172,6 +2401,9 @@
           }
         }
       }
+    },
+    "Shared memory size" : {
+
     },
     "Size" : {
       "localizations" : {
@@ -2329,6 +2561,9 @@
           }
         }
       }
+    },
+    "Static files" : {
+
     },
     "Statistics are simulated. Real-time monitoring coming soon." : {
 
@@ -2608,7 +2843,11 @@
         }
       }
     },
+    "Supports common Compose v2/v3 service fields" : {
+
+    },
     "Supports docker-compose.yml v2 and v3" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -2743,13 +2982,37 @@
         }
       }
     },
+    "tmpfs mounts" : {
+
+    },
     "TX" : {
+
+    },
+    "UID" : {
+
+    },
+    "Ulimits" : {
+
+    },
+    "Unable to browse files" : {
 
     },
     "Uptime" : {
 
     },
+    "Use image default" : {
+
+    },
+    "Use virtualization framework" : {
+
+    },
     "Used by “Open in Terminal”. The in-app terminal is always available." : {
+
+    },
+    "User" : {
+
+    },
+    "User & TTY" : {
 
     },
     "value" : {
@@ -2758,7 +3021,11 @@
     "View" : {
 
     },
+    "Volume" : {
+
+    },
     "Volume Name" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -2781,6 +3048,7 @@
       }
     },
     "Volume names must be lowercase and can contain letters, numbers, hyphens, and underscores" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -2845,6 +3113,9 @@
           }
         }
       }
+    },
+    "Workdir" : {
+
     },
     "Working Directory" : {
 

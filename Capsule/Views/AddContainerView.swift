@@ -23,6 +23,20 @@ struct AddContainerView: View {
             case .compose: return NSLocalizedString("Compose", comment: "")
             }
         }
+        var subtitle: String {
+            switch self {
+            case .configure: return NSLocalizedString("Build manually", comment: "")
+            case .dockerRun: return NSLocalizedString("Convert a command", comment: "")
+            case .compose: return NSLocalizedString("Import services", comment: "")
+            }
+        }
+        var icon: String {
+            switch self {
+            case .configure: return "slider.horizontal.3"
+            case .dockerRun: return "terminal"
+            case .compose: return "square.stack.3d.up"
+            }
+        }
     }
 
     /// One environment variable row.
@@ -31,6 +45,61 @@ struct AddContainerView: View {
     struct PortPair: Identifiable { let id = UUID(); var host = ""; var container = "" }
     /// One volume bind row (host path → container path).
     struct MountBind: Identifiable { let id = UUID(); var host = ""; var container = "" }
+    struct EditableComposeService: Identifiable {
+        let id = UUID()
+        var serviceName: String
+        var containerName: String
+        var image: String
+        var portsText: String
+        var mountsText: String
+        var envText: String
+        var dependsText: String
+        var networkText: String
+        var restartPolicy: String
+        var healthcheck: Bool
+        var commandText: String
+
+        init(_ service: ComposeProject.ComposeService) {
+            serviceName = service.name
+            containerName = service.containerName
+            image = service.image
+            portsText = service.portBindings.joined(separator: "\n")
+            mountsText = service.volumes.joined(separator: "\n")
+            envText = service.environment
+                .sorted { $0.key < $1.key }
+                .map { "\($0.key)=\($0.value)" }
+                .joined(separator: "\n")
+            dependsText = service.dependsOn.joined(separator: ", ")
+            networkText = service.networks.joined(separator: ", ")
+            restartPolicy = service.restartPolicy ?? RestartPolicy.no.rawValue
+            healthcheck = service.healthcheck
+            commandText = service.command.joined(separator: " ")
+        }
+
+        func service() -> ComposeProject.ComposeService {
+            let envPairs = envText.lines.compactMap { line -> (String, String)? in
+                let parts = line.split(separator: "=", maxSplits: 1)
+                guard parts.count == 2 else { return nil }
+                return (String(parts[0]).trimmed, String(parts[1]))
+            }
+            return ComposeProject.ComposeService(
+                name: serviceName.trimmed,
+                containerName: containerName.trimmed,
+                image: image.trimmed,
+                ports: [],
+                portBindings: portsText.lines,
+                volumes: mountsText.lines,
+                environment: Dictionary(envPairs, uniquingKeysWith: { _, last in last }),
+                dependsOn: dependsText.commaSeparated,
+                networks: networkText.commaSeparated,
+                restartPolicy: restartPolicy == RestartPolicy.no.rawValue ? nil : restartPolicy,
+                healthcheck: healthcheck,
+                cpus: 2,
+                memoryGB: 2,
+                command: commandText.trimmed.isEmpty ? [] : commandText.split(separator: " ").map(String.init)
+            )
+        }
+    }
 
     static let platforms = ["auto", "linux/arm64", "linux/amd64"]
 
@@ -45,17 +114,48 @@ struct AddContainerView: View {
     @State private var command = ""          // empty → use the image's default
     @State private var workingDirectory = ""
     @State private var envVars: [EnvVar] = []
+    @State private var envFilesText = ""
     @State private var ports: [PortPair] = []
+    @State private var publishedSocketsText = ""
     @State private var mounts: [MountBind] = []
     @State private var networkChoice = ""    // empty → default network
     @State private var availableNetworks: [ContainerCLI.NetworkInfo] = []
+    @State private var restartPolicy: RestartPolicy = .no
+    @State private var removeAfterStop = false
+    @State private var readOnlyRootfs = false
+    @State private var useInit = false
+    @State private var rosettaEnabled = false
+    @State private var entrypoint = ""
+    @State private var user = ""
+    @State private var uid = ""
+    @State private var gid = ""
+    @State private var labelsText = ""
+    @State private var ulimitsText = ""
+    @State private var dnsServersText = ""
+    @State private var dnsSearchText = ""
+    @State private var dnsOptionsText = ""
+    @State private var noDNS = false
+    @State private var tmpfsText = ""
+    @State private var shmSize = ""
+    @State private var capAddText = ""
+    @State private var capDropText = ""
+    @State private var interactive = false
+    @State private var tty = false
+    @State private var sshAgent = false
+    @State private var virtualization = false
 
     // Docker Run field
     @State private var dockerCommand = ""
+    @State private var dockerParseError: String?
 
     // Compose fields
     @State private var projectName = ""
     @State private var composeContent = ""
+    @State private var composeServices: [EditableComposeService] = []
+    @State private var composeVolumesText = ""
+    @State private var composeNetworksText = ""
+    @State private var composeParseError: String?
+    @State private var selectedComposeServiceID: UUID?
 
     @State private var isWorking = false
     @State private var errorMessage: String?
@@ -63,12 +163,10 @@ struct AddContainerView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("Mode", selection: $mode) {
-                    ForEach(Mode.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .padding()
+                modeSwitcher
+                    .padding(.horizontal, 18)
+                    .padding(.top, 14)
+                    .padding(.bottom, 12)
 
                 Divider()
 
@@ -101,11 +199,50 @@ struct AddContainerView: View {
                         .disabled(isWorking)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { submit() }
+                    Button("Create") { submit(startAfterCreate: false) }
                         .disabled(isSubmitDisabled || isWorking)
                 }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create & Start") { submit(startAfterCreate: true) }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isSubmitDisabled || isWorking || mode == .compose)
+                }
             }
-            .frame(width: 640, height: 600)
+            .frame(width: 920, height: 680)
+        }
+    }
+
+    private var modeSwitcher: some View {
+        HStack(spacing: 10) {
+            ForEach(Mode.allCases) { item in
+                Button {
+                    mode = item
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: item.icon)
+                            .font(.title3)
+                            .frame(width: 24)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.title)
+                                .font(.headline)
+                            Text(item.subtitle)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(mode == item ? Color.accentColor.opacity(0.18) : Color(nsColor: .controlBackgroundColor))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(mode == item ? Color.accentColor.opacity(0.55) : Color.secondary.opacity(0.12), lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -113,18 +250,50 @@ struct AddContainerView: View {
 
     private var configureForm: some View {
         Form {
-            Section("Container Information") {
-                TextField("Name", text: $name, prompt: Text("my-container"))
-                    .textFieldStyle(.roundedBorder)
-
-                TextField("Image", text: $image, prompt: Text("e.g. nginx:latest"))
+            Section("Image") {
+                TextField("Image", text: $image, prompt: Text("docker.io/library/nginx:latest"))
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
-
                 Picker("Platform", selection: $platform) {
                     ForEach(Self.platforms, id: \.self) { Text($0).tag($0) }
                 }
+                TextField("Name", text: $name, prompt: Text(suggestedName))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
             }
+
+            if !image.trimmed.isEmpty {
+                Section("Payload") {
+                    TextField("Entrypoint", text: $entrypoint, prompt: Text("Use image default"))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                    TextField("Command", text: $command, prompt: Text("Use image default"))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                    TextField("Working Directory", text: $workingDirectory, prompt: Text("/"))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                }
+            }
+
+            environmentSection
+
+            Section("Network") {
+                Picker("Network", selection: $networkChoice) {
+                    Text("Default").tag("")
+                    Text("Host").tag("host")
+                    Text("Bridge").tag("bridge")
+                    ForEach(availableNetworks) { net in
+                        Text(net.name).tag(net.name)
+                    }
+                }
+            }
+
+            if canPublishPorts {
+                portsSection
+            }
+
+            mountsSection
 
             Section("Resources") {
                 VStack(alignment: .leading, spacing: 4) {
@@ -137,102 +306,73 @@ struct AddContainerView: View {
                 }
             }
 
-            Section("Command") {
-                TextField("Command", text: $command, prompt: Text("Leave empty to use the image default"))
+            Section("Lifecycle") {
+                Picker("Restart", selection: $restartPolicy) {
+                    ForEach(RestartPolicy.allCases) { policy in
+                        Text(policy.displayName).tag(policy)
+                    }
+                }
+                Toggle("Remove after stop", isOn: $removeAfterStop)
+                Toggle("Run with init process", isOn: $useInit)
+                Toggle("Read-only root filesystem", isOn: $readOnlyRootfs)
+                Toggle("Enable Rosetta for amd64 images", isOn: $rosettaEnabled)
+            }
+
+            Section("User & TTY") {
+                TextField("User", text: $user, prompt: Text("name or uid:gid"))
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
-                TextField("Working Directory", text: $workingDirectory, prompt: Text("/"))
+                HStack {
+                    TextField("UID", text: $uid)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                    TextField("GID", text: $gid)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                }
+                Toggle("Interactive stdin", isOn: $interactive)
+                Toggle("Allocate TTY", isOn: $tty)
+            }
+
+            Section("Advanced") {
+                TextField("Labels", text: $labelsText, prompt: Text("com.example.key=value"), axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
-            }
-
-            Section {
-                ForEach($mounts) { $mount in
-                    VStack(spacing: 6) {
-                        HStack {
-                            TextField("Host path", text: $mount.host)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.system(.caption, design: .monospaced))
-                            Button {
-                                if let path = chooseDirectory() { mount.host = path }
-                            } label: { Image(systemName: "folder") }
-                                .buttonStyle(.borderless)
-                            Button(role: .destructive) {
-                                mounts.removeAll { $0.id == mount.id }
-                            } label: { Image(systemName: "minus.circle.fill") }
-                                .buttonStyle(.borderless)
-                        }
-                        HStack {
-                            Image(systemName: "arrow.down").foregroundStyle(.secondary)
-                            TextField("Container path (e.g. /data)", text: $mount.container)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.system(.caption, design: .monospaced))
-                        }
-                    }
-                }
-                Button {
-                    mounts.append(MountBind())
-                } label: { Label("Add Mount", systemImage: "plus") }
-                    .controlSize(.small)
-            } header: {
-                Text("Mounts")
-            }
-
-            Section {
-                ForEach($envVars) { $env in
-                    HStack {
-                        TextField("KEY", text: $env.key)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.body, design: .monospaced))
-                        Text("=").foregroundStyle(.secondary)
-                        TextField("value", text: $env.value)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.body, design: .monospaced))
-                        Button(role: .destructive) {
-                            envVars.removeAll { $0.id == env.id }
-                        } label: { Image(systemName: "minus.circle.fill") }
-                            .buttonStyle(.borderless)
-                    }
-                }
-                Button {
-                    envVars.append(EnvVar())
-                } label: { Label("Add Variable", systemImage: "plus") }
-                    .controlSize(.small)
-            } header: {
-                Text("Environment")
-            }
-
-            Section {
-                ForEach($ports) { $port in
-                    HStack {
-                        TextField("host", text: $port.host)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.body, design: .monospaced))
-                        Image(systemName: "arrow.right").foregroundStyle(.secondary)
-                        TextField("container", text: $port.container)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.body, design: .monospaced))
-                        Button(role: .destructive) {
-                            ports.removeAll { $0.id == port.id }
-                        } label: { Image(systemName: "minus.circle.fill") }
-                            .buttonStyle(.borderless)
-                    }
-                }
-                Button {
-                    ports.append(PortPair())
-                } label: { Label("Add Port", systemImage: "plus") }
-                    .controlSize(.small)
-            } header: {
-                Text("Published Ports")
-            }
-
-            Section("Network") {
-                Picker("Network", selection: $networkChoice) {
-                    Text("Default").tag("")
-                    ForEach(availableNetworks) { net in
-                        Text(net.name).tag(net.name)
-                    }
-                }
+                    .lineLimit(1...4)
+                TextField("Ulimits", text: $ulimitsText, prompt: Text("nofile=1024:2048"), axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1...4)
+                TextField("DNS servers", text: $dnsServersText, prompt: Text("1.1.1.1"), axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1...3)
+                TextField("DNS search domains", text: $dnsSearchText, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1...3)
+                TextField("DNS options", text: $dnsOptionsText, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1...3)
+                Toggle("Disable DNS configuration", isOn: $noDNS)
+                TextField("tmpfs mounts", text: $tmpfsText, prompt: Text("/run"), axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1...4)
+                TextField("Shared memory size", text: $shmSize, prompt: Text("64MB"))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                TextField("Add capabilities", text: $capAddText, prompt: Text("NET_ADMIN"), axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1...3)
+                TextField("Drop capabilities", text: $capDropText, prompt: Text("ALL"), axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1...3)
+                Toggle("Forward SSH agent", isOn: $sshAgent)
+                Toggle("Use virtualization framework", isOn: $virtualization)
             }
         }
         .formStyle(.grouped)
@@ -244,62 +384,281 @@ struct AddContainerView: View {
     // MARK: - Docker Run
 
     private var dockerRunForm: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Paste your Docker run command:")
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label("Paste Docker Run", systemImage: "terminal")
+                    .font(.headline)
+                Spacer()
+                Button("Parse to Configure") {
+                    parseDockerRunIntoConfigure()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(dockerCommand.trimmed.isEmpty)
+            }
 
             TextEditor(text: $dockerCommand)
                 .font(.system(.body, design: .monospaced))
-                .frame(maxHeight: .infinity)
-                .border(Color.secondary.opacity(0.3))
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .frame(height: 150)
+                .background(Color(nsColor: .textBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
 
-            Text("Example: docker run -d --name my-nginx -p 8080:80 nginx:latest")
-                .font(.system(.caption, design: .monospaced))
+            if let dockerParseError {
+                Label(dockerParseError, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            Text("After parsing, Capsule fills the Configure form so every field can be reviewed and edited before creation.")
+                .font(.caption)
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(4)
+
+            Spacer()
         }
         .padding()
+    }
+
+    private func parseDockerRunIntoConfigure() {
+        do {
+            let spec = try DockerCommandParser.parseDockerRun(dockerCommand)
+            apply(spec: spec)
+            dockerParseError = nil
+            mode = .configure
+        } catch {
+            dockerParseError = error.localizedDescription
+        }
+    }
+
+    private func apply(spec: ContainerSpec) {
+        name = spec.name
+        image = spec.image
+        platform = spec.platform ?? "auto"
+        cpus = Double(spec.cpus)
+        memoryGB = Double(spec.memoryBytes) / 1024 / 1024 / 1024
+        command = spec.command.joined(separator: " ")
+        workingDirectory = spec.workingDirectory
+        envVars = spec.environment.sorted { $0.key < $1.key }.map { EnvVar(key: $0.key, value: $0.value) }
+        envFilesText = spec.envFiles.joined(separator: "\n")
+        ports = spec.publishedPorts.map { value in
+            let parts = value.split(separator: ":")
+            if parts.count >= 2 {
+                let host = parts.dropLast().joined(separator: ":")
+                return PortPair(host: host, container: String(parts[parts.count - 1]))
+            }
+            return PortPair(host: "", container: value)
+        }
+        publishedSocketsText = spec.publishedSockets.joined(separator: "\n")
+        mounts = spec.volumeBinds.map { value in
+            let parts = value.split(separator: ":", maxSplits: 1).map(String.init)
+            return MountBind(host: parts.first ?? "", container: parts.count > 1 ? parts[1] : "")
+        }
+        networkChoice = spec.network ?? ""
+        restartPolicy = spec.restartPolicy
+        removeAfterStop = spec.removeAfterStop
+        readOnlyRootfs = spec.readOnlyRootfs
+        useInit = spec.useInit
+        rosettaEnabled = spec.rosettaEnabled
+        entrypoint = spec.entrypoint ?? ""
+        user = spec.user ?? ""
+        uid = spec.uid ?? ""
+        gid = spec.gid ?? ""
+        labelsText = spec.labels.joined(separator: "\n")
+        ulimitsText = spec.ulimits.joined(separator: "\n")
+        dnsServersText = spec.dnsServers.joined(separator: "\n")
+        dnsSearchText = spec.dnsSearchDomains.joined(separator: "\n")
+        dnsOptionsText = spec.dnsOptions.joined(separator: "\n")
+        noDNS = spec.noDNS
+        tmpfsText = spec.tmpfs.joined(separator: "\n")
+        shmSize = spec.shmSize ?? ""
+        capAddText = spec.capAdd.joined(separator: "\n")
+        capDropText = spec.capDrop.joined(separator: "\n")
+        interactive = spec.interactive
+        tty = spec.tty
+        sshAgent = spec.sshAgent
+        virtualization = spec.virtualization
     }
 
     // MARK: - Compose
 
     private var composeForm: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Project Name:")
-                    .font(.headline)
-                TextField("my-app", text: $projectName)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 220)
-            }
-
-            Text("Paste your docker-compose.yml content:")
-                .font(.headline)
-
-            TextEditor(text: $composeContent)
-                .font(.system(.body, design: .monospaced))
-                .frame(maxHeight: .infinity)
-                .border(Color.secondary.opacity(0.3))
-
-            HStack {
-                Button("Load Example") {
-                    composeContent = DockerComposeParser.exampleComposeYAML()
-                    projectName = "example-app"
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Label("Import Compose", systemImage: "square.stack.3d.up")
+                        .font(.headline)
+                    Spacer()
+                    TextField("Project", text: $projectName, prompt: Text("my-app"))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 180)
+                    Button("Parse") {
+                        parseComposeIntoEditableServices()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(composeContent.trimmed.isEmpty)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
 
+                TextEditor(text: $composeContent)
+                    .font(.system(.body, design: .monospaced))
+                    .scrollContentBackground(.hidden)
+                    .padding(8)
+                    .frame(height: composeServices.isEmpty ? 360 : 150)
+                    .background(Color(nsColor: .textBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                HStack {
+                    Button("Load Example") {
+                        composeContent = DockerComposeParser.exampleComposeYAML()
+                        projectName = "example-app"
+                    }
+                    .buttonStyle(.bordered)
+
+                    Spacer()
+
+                    Text("Supports common Compose v2/v3 service fields")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let composeParseError {
+                    Label(composeParseError, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+            .padding()
+
+            if !composeServices.isEmpty {
+                Divider()
+                composeEditablePlan
+            }
+        }
+    }
+
+    private var composeEditablePlan: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Compose Services", systemImage: "list.bullet.rectangle")
+                    .font(.headline)
                 Spacer()
-
-                Text("Supports docker-compose.yml v2 and v3")
+                Text("\(composeServices.count) containers")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            HStack {
+                TextField("Project volumes", text: $composeVolumesText)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Project networks", text: $composeNetworksText)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            HSplitView {
+                List(selection: $selectedComposeServiceID) {
+                    ForEach(composeServices) { service in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(service.containerName.isEmpty ? service.serviceName : service.containerName)
+                                .fontWeight(.semibold)
+                            Text(service.image)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .padding(.vertical, 4)
+                        .tag(service.id)
+                    }
+                }
+                .frame(minWidth: 210, idealWidth: 240)
+
+                if let binding = selectedComposeServiceBinding {
+                    editableComposeServiceForm(binding)
+                        .frame(minWidth: 520)
+                } else {
+                    ContentUnavailableView("Select a service", systemImage: "square.stack.3d.up")
+                        .frame(minWidth: 520)
+                }
+            }
         }
         .padding()
+    }
+
+    private var selectedComposeServiceBinding: Binding<EditableComposeService>? {
+        guard let selectedComposeServiceID,
+              let index = composeServices.firstIndex(where: { $0.id == selectedComposeServiceID }) else {
+            return nil
+        }
+        return $composeServices[index]
+    }
+
+    private func editableComposeServiceForm(_ service: Binding<EditableComposeService>) -> some View {
+        Form {
+            Section("Image") {
+                TextField("Image", text: service.image)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                TextField("Container name", text: service.containerName)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Service name", text: service.serviceName)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            Section("Payload") {
+                TextField("Command", text: service.commandText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+            }
+
+            Section("Network") {
+                TextField("Networks", text: service.networkText)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Depends on", text: service.dependsText)
+                    .textFieldStyle(.roundedBorder)
+                Picker("Restart", selection: service.restartPolicy) {
+                    ForEach(RestartPolicy.allCases) { policy in
+                        Text(policy.displayName).tag(policy.rawValue)
+                    }
+                }
+                Toggle("Has healthcheck", isOn: service.healthcheck)
+            }
+
+            Section("Published Ports") {
+                TextField("One mapping per line", text: service.portsText, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(2...5)
+            }
+
+            Section("Mounts") {
+                TextField("One mount per line", text: service.mountsText, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(2...5)
+            }
+
+            Section("Environment") {
+                TextField("One KEY=value per line", text: service.envText, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(3...8)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func parseComposeIntoEditableServices() {
+        do {
+            if projectName.trimmed.isEmpty {
+                projectName = "compose-app"
+            }
+            let parsed = try DockerComposeParser.parse(yamlContent: composeContent, appName: projectName.trimmed)
+            projectName = parsed.name
+            composeServices = parsed.services.map(EditableComposeService.init)
+            composeVolumesText = parsed.volumes.joined(separator: ", ")
+            composeNetworksText = parsed.networks.joined(separator: ", ")
+            selectedComposeServiceID = composeServices.first?.id
+            composeParseError = nil
+        } catch {
+            composeParseError = error.localizedDescription
+        }
     }
 
     // MARK: - Validation & submit
@@ -307,15 +666,228 @@ struct AddContainerView: View {
     private var isSubmitDisabled: Bool {
         switch mode {
         case .configure:
-            return name.trimmed.isEmpty || image.trimmed.isEmpty
+            return image.trimmed.isEmpty
         case .dockerRun:
-            return dockerCommand.trimmed.isEmpty
+            return true
         case .compose:
-            return composeContent.trimmed.isEmpty || projectName.trimmed.isEmpty
+            return projectName.trimmed.isEmpty || composeServices.isEmpty
         }
     }
 
-    private func submit() {
+    private var mountsSection: some View {
+        Section {
+            ForEach($mounts) { $mount in
+                VStack(spacing: 6) {
+                    HStack {
+                        TextField("Host path or volume", text: $mount.host)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.caption, design: .monospaced))
+                        Button {
+                            if let path = chooseDirectory() { mount.host = path }
+                        } label: { Image(systemName: "folder") }
+                            .buttonStyle(.borderless)
+                        Button(role: .destructive) {
+                            mounts.removeAll { $0.id == mount.id }
+                        } label: { Image(systemName: "minus.circle.fill") }
+                            .buttonStyle(.borderless)
+                    }
+                    HStack {
+                        Image(systemName: "arrow.down").foregroundStyle(.secondary)
+                        TextField("Container path (e.g. /data)", text: $mount.container)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.caption, design: .monospaced))
+                    }
+                }
+            }
+            Button { mounts.append(MountBind()) } label: {
+                Label("Add Mount", systemImage: "plus")
+            }
+            .controlSize(.small)
+        } header: {
+            Text("Mounts")
+        }
+    }
+
+    private var environmentSection: some View {
+        Section {
+            ForEach($envVars) { $env in
+                HStack {
+                    TextField("KEY", text: $env.key)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                    Text("=")
+                        .foregroundStyle(.secondary)
+                    TextField("value", text: $env.value)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                    Button(role: .destructive) {
+                        envVars.removeAll { $0.id == env.id }
+                    } label: { Image(systemName: "minus.circle.fill") }
+                        .buttonStyle(.borderless)
+                }
+            }
+            Button { envVars.append(EnvVar()) } label: {
+                Label("Add Variable", systemImage: "plus")
+            }
+            .controlSize(.small)
+
+            TextField("Env files", text: $envFilesText, prompt: Text("/path/to/.env"), axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(1...4)
+        } header: {
+            Text("Environment")
+        }
+    }
+
+    private var portsSection: some View {
+        Section {
+            ForEach($ports) { $port in
+                HStack {
+                    TextField("host", text: $port.host)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                    Image(systemName: "arrow.right")
+                        .foregroundStyle(.secondary)
+                    TextField("container", text: $port.container)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                    Button(role: .destructive) {
+                        ports.removeAll { $0.id == port.id }
+                    } label: { Image(systemName: "minus.circle.fill") }
+                        .buttonStyle(.borderless)
+                }
+            }
+            Button { ports.append(PortPair()) } label: {
+                Label("Add Port", systemImage: "plus")
+            }
+            .controlSize(.small)
+
+            TextField("Published sockets", text: $publishedSocketsText, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(1...3)
+        } header: {
+            Text("Published Ports")
+        }
+    }
+
+    private var canPublishPorts: Bool {
+        networkChoice != "host"
+    }
+
+    private var creationPreview: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Label("Preview", systemImage: "terminal")
+                .font(.headline)
+
+            VStack(alignment: .leading, spacing: 10) {
+                previewRow("Name", resolvedName)
+                previewRow("Image", image.trimmed.isEmpty ? "Required" : image.trimmed)
+                previewRow("Resources", "\(Int(cpus)) CPU / \(memoryGB.formatted(.number.precision(.fractionLength(1)))) GB")
+                previewRow("Network", networkChoice.isEmpty ? "default" : networkChoice)
+            }
+            .padding(12)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            Text(commandPreview)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .textBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            Spacer()
+
+            Text("Capsule creates the container first. Use Create & Start when you want the payload to run immediately.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(18)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private func previewRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .foregroundStyle(.secondary)
+                .frame(width: 72, alignment: .leading)
+            Text(value)
+                .lineLimit(2)
+                .truncationMode(.middle)
+            Spacer()
+        }
+        .font(.caption)
+    }
+
+    private var suggestedName: String {
+        let base = image.trimmed
+            .split(separator: "/").last?
+            .split(separator: ":").first
+            .map(String.init) ?? "my-container"
+        return base.isEmpty ? "my-container" : base.replacingOccurrences(of: ".", with: "-")
+    }
+
+    private var resolvedName: String {
+        name.trimmed.isEmpty ? suggestedName : name.trimmed
+    }
+
+    private var commandPreview: String {
+        var parts = ["container", "create", "--name", shellEscape(resolvedName)]
+        parts += ["--cpus", "\(Int(cpus))", "--memory", "\(Int(memoryGB * 1024))MB"]
+        envVars
+            .filter { !$0.key.trimmed.isEmpty }
+            .forEach { parts += ["--env", shellEscape("\($0.key.trimmed)=\($0.value)")] }
+        if canPublishPorts {
+            ports.compactMap(portSpec).forEach { parts += ["--publish", shellEscape($0)] }
+        }
+        mounts.compactMap(mountSpec).forEach { parts += ["--volume", shellEscape($0)] }
+        if !networkChoice.isEmpty { parts += ["--network", shellEscape(networkChoice)] }
+        if platform != "auto" { parts += ["--platform", platform] }
+        if !workingDirectory.trimmed.isEmpty, workingDirectory.trimmed != "/" {
+            parts += ["--workdir", shellEscape(workingDirectory.trimmed)]
+        }
+        if rosettaEnabled { parts.append("--rosetta") }
+        if removeAfterStop { parts.append("--rm") }
+        if readOnlyRootfs { parts.append("--read-only") }
+        if useInit { parts.append("--init") }
+        parts.append(shellEscape(image.trimmed.isEmpty ? "<image>" : image.trimmed))
+        parts += parseCommand(command).map(shellEscape)
+        return parts.joined(separator: " ")
+    }
+
+    private func containerCommandPreview(for spec: ContainerSpec) -> String {
+        var parts = ["container", "create", "--name", shellEscape(spec.name)]
+        parts += ["--cpus", "\(spec.cpus)", "--memory", "\(Int(spec.memoryBytes / 1024 / 1024))MB"]
+        spec.environment.sorted(by: { $0.key < $1.key }).forEach { parts += ["--env", shellEscape("\($0.key)=\($0.value)")] }
+        spec.publishedPorts.forEach { parts += ["--publish", shellEscape($0)] }
+        spec.volumeBinds.forEach { parts += ["--volume", shellEscape($0)] }
+        if let network = spec.network { parts += ["--network", shellEscape(network)] }
+        if let platform = spec.platform { parts += ["--platform", platform] }
+        if spec.workingDirectory != "/" { parts += ["--workdir", shellEscape(spec.workingDirectory)] }
+        if spec.removeAfterStop { parts.append("--rm") }
+        parts.append(shellEscape(spec.image))
+        parts += spec.command.map(shellEscape)
+        return parts.joined(separator: " ")
+    }
+
+    private func templateButton(_ title: String, imageName: String, image: String, port: (String, String)) -> some View {
+        Button {
+            self.image = image
+            if name.trimmed.isEmpty { name = image.split(separator: ":").first.map(String.init) ?? title.lowercased() }
+            if !ports.contains(where: { $0.host == port.0 && $0.container == port.1 }) {
+                ports.append(PortPair(host: port.0, container: port.1))
+            }
+        } label: {
+            Label(title, systemImage: imageName)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+    }
+
+    private func submit(startAfterCreate: Bool) {
         errorMessage = nil
         isWorking = true
 
@@ -324,7 +896,7 @@ struct AddContainerView: View {
                 switch mode {
                 case .configure:
                     var spec = ContainerSpec(
-                        name: name.trimmed,
+                        name: resolvedName,
                         image: image.trimmed,
                         cpus: Int(cpus),
                         memoryBytes: UInt64(memoryGB * 1024 * 1024 * 1024),
@@ -337,20 +909,54 @@ struct AddContainerView: View {
                             .map { ($0.key.trimmed, $0.value) },
                         uniquingKeysWith: { _, last in last }
                     )
-                    spec.publishedPorts = ports.compactMap { portSpec($0) }
+                    spec.envFiles = envFilesText.lines
+                    spec.publishedPorts = canPublishPorts ? ports.compactMap { portSpec($0) } : []
+                    spec.publishedSockets = canPublishPorts ? publishedSocketsText.lines : []
                     spec.volumeBinds = mounts.compactMap { mountSpec($0) }
                     spec.network = networkChoice.isEmpty ? nil : networkChoice
                     spec.platform = platform == "auto" ? nil : platform
-                    await viewModel.createContainer(spec: spec)
+                    spec.entrypoint = entrypoint.nilIfTrimmedEmpty
+                    spec.user = user.nilIfTrimmedEmpty
+                    spec.uid = uid.nilIfTrimmedEmpty
+                    spec.gid = gid.nilIfTrimmedEmpty
+                    spec.labels = labelsText.lines
+                    spec.ulimits = ulimitsText.lines
+                    spec.dnsServers = dnsServersText.lines
+                    spec.dnsSearchDomains = dnsSearchText.lines
+                    spec.dnsOptions = dnsOptionsText.lines
+                    spec.noDNS = noDNS
+                    spec.tmpfs = tmpfsText.lines
+                    spec.shmSize = shmSize.nilIfTrimmedEmpty
+                    spec.capAdd = capAddText.lines
+                    spec.capDrop = capDropText.lines
+                    spec.interactive = interactive
+                    spec.tty = tty
+                    spec.sshAgent = sshAgent
+                    spec.virtualization = virtualization
+                    spec.rosettaEnabled = rosettaEnabled
+                    spec.removeAfterStop = removeAfterStop
+                    spec.readOnlyRootfs = readOnlyRootfs
+                    spec.useInit = useInit
+                    spec.restartPolicy = restartPolicy
+                    if startAfterCreate {
+                        let summary = try await viewModel.runtime.createContainer(spec)
+                        try await viewModel.runtime.startContainer(id: summary.id)
+                        await viewModel.refresh()
+                    } else {
+                        await viewModel.createContainer(spec: spec)
+                    }
 
                 case .dockerRun:
-                    let spec = try DockerCommandParser.parseDockerRun(dockerCommand)
-                    await viewModel.createContainer(spec: spec)
+                    parseDockerRunIntoConfigure()
+                    isWorking = false
+                    return
 
                 case .compose:
                     _ = try await composeManager.createProject(
                         name: projectName.trimmed,
-                        yamlContent: composeContent
+                        services: composeServices.map { $0.service() },
+                        volumes: composeVolumesText.commaSeparated,
+                        networks: composeNetworksText.commaSeparated
                     )
                 }
                 dismiss()
@@ -393,6 +999,15 @@ struct AddContainerView: View {
         panel.allowsMultipleSelection = false
         return panel.runModal() == .OK ? panel.url?.path : nil
     }
+
+    private func shellEscape(_ value: String) -> String {
+        guard !value.isEmpty else { return "''" }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-")
+        if value.unicodeScalars.allSatisfy({ allowed.contains($0) }) {
+            return value
+        }
+        return "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
 }
 
 /// A resource input combining a slider with a numeric text field.
@@ -420,6 +1035,20 @@ struct ResourceField: View {
 
 private extension String {
     var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
+    var nilIfTrimmedEmpty: String? {
+        let value = trimmed
+        return value.isEmpty ? nil : value
+    }
+    var lines: [String] {
+        components(separatedBy: .newlines)
+            .map(\.trimmed)
+            .filter { !$0.isEmpty }
+    }
+    var commaSeparated: [String] {
+        split(separator: ",")
+            .map { String($0).trimmed }
+            .filter { !$0.isEmpty }
+    }
 }
 
 #Preview {

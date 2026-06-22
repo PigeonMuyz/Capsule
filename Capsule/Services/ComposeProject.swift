@@ -16,18 +16,19 @@ actor ComposeProject {
 
     struct ComposeService {
         let name: String
+        let containerName: String
         let image: String
         let ports: [(host: Int, container: Int)]
+        let portBindings: [String]
         let volumes: [String]
         let environment: [String: String]
         let dependsOn: [String]
+        let networks: [String]
+        let restartPolicy: String?
+        let healthcheck: Bool
         let cpus: Int
         let memoryGB: Int
         let command: [String]
-
-        var containerName: String {
-            name
-        }
     }
 
     init(name: String, services: [ComposeService], runtime: RuntimeCore) {
@@ -69,13 +70,20 @@ actor ComposeProject {
         // Create and start containers in order
         for service in sortedServices {
             do {
-                let spec = ContainerSpec(
-                    name: "\(name)-\(service.name)",
+                var spec = ContainerSpec(
+                    name: service.containerName.isEmpty ? "\(name)-\(service.name)" : service.containerName,
                     image: service.image,
                     cpus: service.cpus,
                     memoryBytes: UInt64(service.memoryGB) * 1024 * 1024 * 1024,
                     command: service.command
                 )
+                spec.environment = service.environment
+                spec.publishedPorts = service.portBindings.isEmpty
+                    ? service.ports.map { "\($0.host):\($0.container)" }
+                    : service.portBindings
+                spec.volumeBinds = service.volumes
+                spec.network = service.networks.first
+                spec.restartPolicy = RestartPolicy(rawValue: service.restartPolicy ?? "") ?? .no
 
                 let summary = try await runtime.createContainer(spec)
                 containerIDs[service.name] = summary.id

@@ -17,16 +17,61 @@ struct DockerCommandParser {
 
         var name: String?
         var image: String = ""
-        var ports: [(host: Int, container: Int)] = []
+        var ports: [String] = []
         var volumes: [String] = []
         var env: [String: String] = [:]
         var cpus: Int = 2
         var memoryGB: Int = 2
         var command: [String] = []
+        var removeAfterStop = false
+        var platform: String?
+        var network: String?
+        var workdir = "/"
+        var restartPolicy: RestartPolicy = .no
+        var envFiles: [String] = []
+        var entrypoint: String?
+        var user: String?
+        var labels: [String] = []
+        var ulimits: [String] = []
+        var dnsServers: [String] = []
+        var dnsSearchDomains: [String] = []
+        var dnsOptions: [String] = []
+        var tmpfs: [String] = []
+        var shmSize: String?
+        var capAdd: [String] = []
+        var capDrop: [String] = []
+        var interactive = false
+        var tty = false
 
         var i = 0
         while i < args.count {
             let arg = args[i]
+
+            if let value = value(afterPrefix: "--restart=", in: arg) {
+                restartPolicy = RestartPolicy(rawValue: value) ?? .no
+                i += 1
+                continue
+            }
+            if let value = value(afterPrefix: "--name=", in: arg) {
+                name = value
+                i += 1
+                continue
+            }
+            if let value = value(afterPrefix: "--env=", in: arg), let (key, value) = parseEnv(value) {
+                env[key] = value
+                i += 1
+                continue
+            }
+            if let value = value(afterPrefix: "--publish=", in: arg) {
+                ports.append(value)
+                i += 1
+                continue
+            }
+            if let value = value(afterPrefix: "--volume=", in: arg) {
+                volumes.append(value)
+                i += 1
+                continue
+            }
 
             switch arg {
             case "--name":
@@ -35,9 +80,7 @@ struct DockerCommandParser {
 
             case "-p", "--publish":
                 i += 1
-                if let portPair = parsePort(args[i]) {
-                    ports.append(portPair)
-                }
+                ports.append(args[i])
 
             case "-v", "--volume":
                 i += 1
@@ -49,6 +92,10 @@ struct DockerCommandParser {
                     env[key] = value
                 }
 
+            case "--env-file":
+                i += 1
+                envFiles.append(args[i])
+
             case "--cpus":
                 i += 1
                 cpus = Int(args[i]) ?? 2
@@ -57,8 +104,80 @@ struct DockerCommandParser {
                 i += 1
                 memoryGB = parseMemory(args[i])
 
-            case "-d", "--detach", "--rm", "-it", "-i", "-t":
-                // Flags without values, skip
+            case "--platform":
+                i += 1
+                platform = args[i]
+
+            case "--network":
+                i += 1
+                network = args[i]
+
+            case "-w", "--workdir":
+                i += 1
+                workdir = args[i]
+
+            case "--restart":
+                i += 1
+                restartPolicy = RestartPolicy(rawValue: args[i]) ?? .no
+
+            case "--entrypoint":
+                i += 1
+                entrypoint = args[i]
+
+            case "-u", "--user":
+                i += 1
+                user = args[i]
+
+            case "--label":
+                i += 1
+                labels.append(args[i])
+
+            case "--ulimit":
+                i += 1
+                ulimits.append(args[i])
+
+            case "--dns":
+                i += 1
+                dnsServers.append(args[i])
+
+            case "--dns-search":
+                i += 1
+                dnsSearchDomains.append(args[i])
+
+            case "--dns-option":
+                i += 1
+                dnsOptions.append(args[i])
+
+            case "--tmpfs":
+                i += 1
+                tmpfs.append(args[i])
+
+            case "--shm-size":
+                i += 1
+                shmSize = args[i]
+
+            case "--cap-add":
+                i += 1
+                capAdd.append(args[i])
+
+            case "--cap-drop":
+                i += 1
+                capDrop.append(args[i])
+
+            case "--rm":
+                removeAfterStop = true
+
+            case "-i", "--interactive":
+                interactive = true
+
+            case "-t", "--tty":
+                tty = true
+
+            case "-it", "-ti":
+                interactive = true
+                tty = true
+
+            case "-d", "--detach":
                 break
 
             default:
@@ -83,23 +202,41 @@ struct DockerCommandParser {
         let containerName = name ?? "container-\(UUID().uuidString.prefix(8))"
         let memoryBytes = UInt64(memoryGB) * 1024 * 1024 * 1024
 
-        return ContainerSpec(
+        var spec = ContainerSpec(
             name: containerName,
             image: image,
             cpus: cpus,
             memoryBytes: memoryBytes,
-            command: command
+            command: command,
+            workingDirectory: workdir
         )
+        spec.environment = env
+        spec.envFiles = envFiles
+        spec.publishedPorts = ports
+        spec.volumeBinds = volumes
+        spec.network = network
+        spec.platform = platform
+        spec.removeAfterStop = removeAfterStop
+        spec.restartPolicy = restartPolicy
+        spec.entrypoint = entrypoint
+        spec.user = user
+        spec.labels = labels
+        spec.ulimits = ulimits
+        spec.dnsServers = dnsServers
+        spec.dnsSearchDomains = dnsSearchDomains
+        spec.dnsOptions = dnsOptions
+        spec.tmpfs = tmpfs
+        spec.shmSize = shmSize
+        spec.capAdd = capAdd
+        spec.capDrop = capDrop
+        spec.interactive = interactive
+        spec.tty = tty
+        return spec
     }
 
-    private static func parsePort(_ portString: String) -> (host: Int, container: Int)? {
-        let parts = portString.split(separator: ":")
-        guard parts.count >= 2,
-              let host = Int(parts[0]),
-              let container = Int(parts[1]) else {
-            return nil
-        }
-        return (host, container)
+    private static func value(afterPrefix prefix: String, in argument: String) -> String? {
+        guard argument.hasPrefix(prefix) else { return nil }
+        return String(argument.dropFirst(prefix.count))
     }
 
     private static func parseEnv(_ envString: String) -> (String, String)? {

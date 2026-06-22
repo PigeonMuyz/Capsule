@@ -26,13 +26,35 @@ class ComposeManager: ObservableObject {
         do {
             // Parse compose file
             let parsed = try DockerComposeParser.parse(yamlContent: yamlContent, appName: name)
-
-            // Create project wrapper
-            let wrapper = ComposeProjectWrapper(
+            return try await createProject(
                 name: parsed.name,
                 services: parsed.services,
                 volumes: parsed.volumes,
-                networks: parsed.networks,
+                networks: parsed.networks
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+            isLoading = false
+            throw error
+        }
+    }
+
+    func createProject(
+        name: String,
+        services: [ComposeProject.ComposeService],
+        volumes: [String],
+        networks: [String]
+    ) async throws -> String {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            // Create project wrapper
+            let wrapper = ComposeProjectWrapper(
+                name: name,
+                services: services,
+                volumes: volumes,
+                networks: networks,
                 runtime: runtime
             )
 
@@ -44,8 +66,8 @@ class ComposeManager: ObservableObject {
 
             let info = ComposeProjectInfo(
                 id: wrapper.id,
-                name: parsed.name,
-                services: parsed.services.map { $0.name },
+                name: name,
+                services: services.map { $0.name },
                 status: .running
             )
             projects.append(info)
@@ -216,13 +238,20 @@ class ComposeProjectWrapper {
 
         // Create and start containers
         for service in sorted {
-            let spec = ContainerSpec(
-                name: "\(name)-\(service.name)",
+            var spec = ContainerSpec(
+                name: service.containerName.isEmpty ? "\(name)-\(service.name)" : service.containerName,
                 image: service.image,
                 cpus: service.cpus,
                 memoryBytes: UInt64(service.memoryGB) * 1024 * 1024 * 1024,
                 command: service.command
             )
+            spec.environment = service.environment
+            spec.publishedPorts = service.portBindings.isEmpty
+                ? service.ports.map { "\($0.host):\($0.container)" }
+                : service.portBindings
+            spec.volumeBinds = service.volumes
+            spec.network = service.networks.first
+            spec.restartPolicy = RestartPolicy(rawValue: service.restartPolicy ?? "") ?? .no
 
             let summary = try await runtime.createContainer(spec)
             containerIDs[service.name] = summary.id
