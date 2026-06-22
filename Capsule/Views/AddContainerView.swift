@@ -174,6 +174,9 @@ struct AddContainerView: View {
     @State private var sshAgent = false
     @State private var virtualization = false
 
+    // Docker Run import
+    @State private var showDockerRunImport = false
+
     // Docker Run field
     @State private var dockerCommand = ""
     @State private var dockerParseError: String?
@@ -297,6 +300,15 @@ struct AddContainerView: View {
                             .font(.title2)
                             .fontWeight(.semibold)
                         Spacer()
+
+                        // Quick import from Docker Run
+                        Button {
+                            showDockerRunImport = true
+                        } label: {
+                            Label("Import Docker Run", systemImage: "terminal")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
@@ -320,6 +332,9 @@ struct AddContainerView: View {
                     .formStyle(.grouped)
                     .scrollDisabled(true)
                 }
+            }
+            .sheet(isPresented: $showDockerRunImport) {
+                dockerRunImportSheet
             }
         }
         .task {
@@ -515,6 +530,50 @@ struct AddContainerView: View {
     }
 
     // MARK: - Docker Run
+
+    private var dockerRunImportSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 14) {
+                TextEditor(text: $dockerCommand)
+                    .font(.system(.body, design: .monospaced))
+                    .scrollContentBackground(.hidden)
+                    .padding(8)
+                    .frame(height: 180)
+                    .background(Color(nsColor: .textBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                if let dockerParseError {
+                    Label(dockerParseError, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
+                Text("Paste a docker run command. Capsule will parse it and fill the configuration form.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Import Docker Run")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showDockerRunImport = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Parse") {
+                        parseDockerRunIntoConfigure()
+                        if dockerParseError == nil {
+                            showDockerRunImport = false
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(dockerCommand.trimmed.isEmpty)
+                }
+            }
+            .frame(width: 580, height: 380)
+        }
+    }
 
     private var dockerRunForm: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -723,8 +782,56 @@ struct AddContainerView: View {
     }
 
     private func editableComposeServiceForm(_ service: Binding<EditableComposeService>) -> some View {
-        Form {
-            Section("Image") {
+        HSplitView {
+            // Left sidebar: section navigation
+            List(ConfigSection.allCases, selection: $configSection) { section in
+                Label(section.title, systemImage: section.icon)
+                    .tag(section)
+            }
+            .listStyle(.sidebar)
+            .frame(minWidth: 160, idealWidth: 180, maxWidth: 220)
+
+            // Right panel: selected section content
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Section header
+                    HStack {
+                        Label(configSection.title, systemImage: configSection.icon)
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    .padding(.bottom, 12)
+
+                    Divider()
+
+                    // Section form content
+                    Form {
+                        switch configSection {
+                        case .general: composeGeneralSection(service)
+                        case .network: composeNetworkSection(service)
+                        case .ports: composePortsSection(service)
+                        case .volumes: composeVolumesSection(service)
+                        case .environment: composeEnvironmentSection(service)
+                        case .resources: Text("Resources are set at project level").foregroundStyle(.secondary)
+                        case .lifecycle: composeLifecycleSection(service)
+                        case .advanced: Text("Advanced settings inherit from service definition").foregroundStyle(.secondary)
+                        }
+                    }
+                    .formStyle(.grouped)
+                    .scrollDisabled(true)
+                }
+            }
+        }
+    }
+
+    // MARK: - Compose Service Sections
+
+    private func composeGeneralSection(_ service: Binding<EditableComposeService>) -> some View {
+        Group {
+            Section {
                 TextField("Image", text: service.image)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
@@ -732,49 +839,84 @@ struct AddContainerView: View {
                     .textFieldStyle(.roundedBorder)
                 TextField("Service name", text: service.serviceName)
                     .textFieldStyle(.roundedBorder)
+            } header: {
+                Text("Image")
             }
 
-            Section("Payload") {
-                TextField("Command", text: service.commandText)
+            Section {
+                TextField("Command", text: service.commandText, prompt: Text("Override image command"))
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
+            } header: {
+                Text("Execution")
             }
+        }
+    }
 
-            Section("Network") {
-                TextField("Networks", text: service.networkText)
+    private func composeNetworkSection(_ service: Binding<EditableComposeService>) -> some View {
+        Group {
+            Section {
+                TextField("Networks", text: service.networkText, prompt: Text("network1, network2"))
                     .textFieldStyle(.roundedBorder)
-                TextField("Depends on", text: service.dependsText)
+                TextField("Depends on", text: service.dependsText, prompt: Text("service1, service2"))
                     .textFieldStyle(.roundedBorder)
+            } header: {
+                Text("Network & Dependencies")
+            }
+        }
+    }
+
+    private func composePortsSection(_ service: Binding<EditableComposeService>) -> some View {
+        Section {
+            TextField("One mapping per line (e.g. 8080:80)", text: service.portsText, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(2...8)
+        } header: {
+            Text("Port Mappings")
+        }
+    }
+
+    private func composeVolumesSection(_ service: Binding<EditableComposeService>) -> some View {
+        Section {
+            TextField("One mount per line (e.g. ./data:/var/lib/data)", text: service.mountsText, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(2...8)
+        } header: {
+            Text("Mounts")
+        }
+    }
+
+    private func composeEnvironmentSection(_ service: Binding<EditableComposeService>) -> some View {
+        Section {
+            TextField("One variable per line (KEY=value)", text: service.envText, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(2...10)
+        } header: {
+            Text("Environment Variables")
+        }
+    }
+
+    private func composeLifecycleSection(_ service: Binding<EditableComposeService>) -> some View {
+        Group {
+            Section {
                 Picker("Restart", selection: service.restartPolicy) {
                     ForEach(RestartPolicy.allCases) { policy in
                         Text(policy.displayName).tag(policy.rawValue)
                     }
                 }
+            } header: {
+                Text("Restart Policy")
+            }
+
+            Section {
                 Toggle("Has healthcheck", isOn: service.healthcheck)
-            }
-
-            Section("Published Ports") {
-                TextField("One mapping per line", text: service.portsText, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                    .lineLimit(2...5)
-            }
-
-            Section("Mounts") {
-                TextField("One mount per line", text: service.mountsText, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                    .lineLimit(2...5)
-            }
-
-            Section("Environment") {
-                TextField("One KEY=value per line", text: service.envText, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                    .lineLimit(3...8)
+            } header: {
+                Text("Health")
             }
         }
-        .formStyle(.grouped)
     }
 
     private func parseComposeIntoEditableServices() {

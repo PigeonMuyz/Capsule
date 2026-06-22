@@ -289,6 +289,9 @@
         }
       }
     },
+    "Capabilities" : {
+
+    },
     "Capsule creates the container first. Use Create & Start when you want the payload to run immediately." : {
 
     },
@@ -415,6 +418,9 @@
     "Compose Services" : {
 
     },
+    "Compute" : {
+
+    },
     "Configure" : {
       "localizations" : {
         "ja" : {
@@ -492,6 +498,9 @@
 
     },
     "Container not running" : {
+
+    },
+    "Container Options" : {
 
     },
     "Container path (e.g. /data)" : {
@@ -855,6 +864,9 @@
     "Disable DNS configuration" : {
 
     },
+    "DNS" : {
+
+    },
     "DNS options" : {
 
     },
@@ -982,6 +994,9 @@
     "Executable" : {
 
     },
+    "Execution" : {
+
+    },
     "External Terminal" : {
 
     },
@@ -1029,6 +1044,9 @@
           }
         }
       }
+    },
+    "Filesystem" : {
+
     },
     "Forward SSH agent" : {
 
@@ -1227,6 +1245,9 @@
 
     },
     "Labels" : {
+
+    },
+    "Labels & Limits" : {
 
     },
     "Language" : {
@@ -1537,6 +1558,9 @@
           }
         }
       }
+    },
+    "Network Mode" : {
+
     },
     "Network names must be lowercase and can contain letters, numbers, hyphens, and underscores" : {
       "extractionState" : "stale",
@@ -2001,6 +2025,12 @@
         }
       }
     },
+    "Port Mappings" : {
+
+    },
+    "Port publishing is disabled when using host networking." : {
+
+    },
     "Ports" : {
 
     },
@@ -2296,6 +2326,9 @@
     "Restart" : {
 
     },
+    "Restart Policy" : {
+
+    },
     "Right-click a file for actions" : {
 
     },
@@ -2426,6 +2459,9 @@
           }
         }
       }
+    },
+    "Sockets" : {
+
     },
     "Start" : {
       "localizations" : {
@@ -2890,6 +2926,9 @@
           }
         }
       }
+    },
+    "System Integration" : {
+
     },
     "Tag" : {
       "localizations" : {
