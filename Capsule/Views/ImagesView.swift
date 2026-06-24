@@ -151,80 +151,119 @@ struct ImageRow: View {
 
 // MARK: - Image Detail Panel
 
+// MARK: - Image Detail Panel (Apple Container CLI Native)
+
 struct ImageDetailPanel: View {
     let image: ContainerCLI.ImageInfo
     @ObservedObject var viewModel: ContainerViewModel
-    @State private var selectedTab = "info"
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 0) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(image.repository)
-                            .font(.title2)
-                            .fontWeight(.semibold)
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(image.repository)
+                        .font(.title2)
+                        .fontWeight(.semibold)
 
-                        Text(image.tag)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
+                    Text(image.tag)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-                .padding()
 
-                HStack(spacing: 0) {
-                    TabButton(title: "Info", icon: "info.circle", isSelected: selectedTab == "info") {
-                        selectedTab = "info"
-                    }
-
-                    Spacer()
-                }
-                .padding(.horizontal)
-
-                Divider()
+                Spacer()
             }
+            .padding(.horizontal)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
 
-            ScrollView {
-                ImageInfoTabView(image: image, viewModel: viewModel)
+            Divider()
+
+            // Native SwiftUI TabView
+            TabView {
+                OverviewTab(image: image, viewModel: viewModel)
+                    .tabItem {
+                        Label("Overview", systemImage: "info.circle")
+                    }
+                    .tag(0)
+
+                LayersTab(image: image)
+                    .tabItem {
+                        Label("Layers", systemImage: "square.stack.3d.down.right")
+                    }
+                    .tag(1)
+
+                HistoryTab(image: image)
+                    .tabItem {
+                        Label("History", systemImage: "clock")
+                    }
+                    .tag(2)
             }
         }
     }
 }
 
-// MARK: - Image Info Tab
+// MARK: - Overview Tab
 
-struct ImageInfoTabView: View {
+struct OverviewTab: View {
     let image: ContainerCLI.ImageInfo
     @ObservedObject var viewModel: ContainerViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            InfoSection(title: "General") {
-                InfoRow(label: "Repository", value: image.repository)
-                InfoRow(label: "Tag", value: image.tag)
-                InfoRow(label: "ID", value: String(image.id.prefix(12)))
-                InfoRow(label: "Size", value: formatSize(image.size))
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // Actions
+                InfoSection(title: "Actions") {
+                    HStack(spacing: 12) {
+                        Button(action: createContainer) {
+                            Label("Create Container", systemImage: "plus.circle.fill")
+                        }
+                        .buttonStyle(.borderedProminent)
 
-            InfoSection(title: "Details") {
-                InfoRow(label: "Digest", value: String(image.digest.suffix(12)))
-                if !image.created.isEmpty {
-                    InfoRow(label: "Created", value: image.created)
+                        Button(action: tagImage) {
+                            Label("Tag", systemImage: "tag")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button(action: pushImage) {
+                            Label("Push", systemImage: "arrow.up.circle")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Spacer()
+
+                        Button(role: .destructive, action: deleteImage) {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        .buttonStyle(.bordered)
+                    }
                 }
-            }
 
-            InfoSection(title: "Actions") {
-                Button(action: { createContainer() }) {
-                    Label("Create Container", systemImage: "plus.circle.fill")
+                // General
+                InfoSection(title: "General") {
+                    InfoRow(label: "Repository", value: image.repository)
+                    Divider()
+                    InfoRow(label: "Tag", value: image.tag)
+                    Divider()
+                    InfoRow(label: "ID", value: String(image.id.prefix(12)))
+                    Divider()
+                    InfoRow(label: "Size", value: formatSize(image.size))
                 }
-                .buttonStyle(.borderedProminent)
-            }
 
-            Spacer()
+                // Details
+                InfoSection(title: "Details") {
+                    InfoRow(label: "Digest", value: String(image.digest.suffix(12)))
+                    if !image.created.isEmpty {
+                        Divider()
+                        InfoRow(label: "Created", value: image.created)
+                    }
+                }
+
+                Spacer(minLength: 16)
+            }
+            .padding(20)
         }
-        .padding()
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private func formatSize(_ bytes: Int64) -> String {
@@ -245,6 +284,66 @@ struct ImageInfoTabView: View {
             )
             await viewModel.createContainer(spec: spec)
         }
+    }
+
+    private func tagImage() {
+        // TODO: Implement tag image dialog
+    }
+
+    private func pushImage() {
+        // TODO: Implement push image
+    }
+
+    private func deleteImage() {
+        Task {
+            try? await viewModel.runtime.deleteImage(id: image.id)
+        }
+    }
+}
+
+// MARK: - Layers Tab
+
+struct LayersTab: View {
+    let image: ContainerCLI.ImageInfo
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Image Layers")
+                    .font(.headline)
+
+                Text("Coming soon: View image layer information from container image inspect")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+            }
+            .padding(20)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+}
+
+// MARK: - History Tab
+
+struct HistoryTab: View {
+    let image: ContainerCLI.ImageInfo
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Build History")
+                    .font(.headline)
+
+                Text("Coming soon: View image build history and layer commands")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+            }
+            .padding(20)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
