@@ -141,11 +141,14 @@ struct NetworkRow: View {
 
 // MARK: - Network Detail Panel
 
+// MARK: - Network Detail Panel (Apple Container CLI Native)
+
 struct NetworkDetailPanel: View {
     let network: ContainerCLI.NetworkInfo
 
     var body: some View {
         VStack(spacing: 0) {
+            // Header
             HStack {
                 Text(network.name)
                     .font(.title2)
@@ -153,29 +156,107 @@ struct NetworkDetailPanel: View {
 
                 Spacer()
             }
-            .padding()
+            .padding(.horizontal)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    InfoSection(title: "General") {
-                        InfoRow(label: "Name", value: network.name)
-                        InfoRow(label: "Driver", value: network.driver)
-                        InfoRow(label: "ID", value: String(network.id.prefix(12)))
+            // Native SwiftUI TabView
+            TabView {
+                NetworkOverviewTab(network: network)
+                    .tabItem {
+                        Label("Overview", systemImage: "info.circle")
                     }
+                    .tag(0)
 
-                    if let subnet = network.subnet {
-                        InfoSection(title: "Networking") {
-                            InfoRow(label: "Subnet", value: subnet)
-                        }
+                NetworkContainersTab(network: network)
+                    .tabItem {
+                        Label("Containers", systemImage: "cube.box")
                     }
-
-                    Spacer()
-                }
-                .padding()
+                    .tag(1)
             }
         }
+    }
+}
+
+// MARK: - Overview Tab
+
+struct NetworkOverviewTab: View {
+    let network: ContainerCLI.NetworkInfo
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // Actions
+                InfoSection(title: "Actions") {
+                    HStack(spacing: 12) {
+                        Button(role: .destructive, action: deleteNetwork) {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button(action: pruneNetworks) {
+                            Label("Prune Unused", systemImage: "trash.circle")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Spacer()
+                    }
+                }
+
+                // General
+                InfoSection(title: "General") {
+                    InfoRow(label: "Name", value: network.name)
+                    Divider()
+                    InfoRow(label: "Driver", value: network.driver)
+                    Divider()
+                    InfoRow(label: "ID", value: String(network.id.prefix(12)))
+                }
+
+                // Networking
+                if let subnet = network.subnet {
+                    InfoSection(title: "Networking") {
+                        InfoRow(label: "Subnet", value: subnet)
+                    }
+                }
+
+                Spacer(minLength: 16)
+            }
+            .padding(20)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private func deleteNetwork() {
+        // TODO: Implement delete network
+    }
+
+    private func pruneNetworks() {
+        // TODO: Implement prune networks
+    }
+}
+
+// MARK: - Connected Containers Tab
+
+struct NetworkContainersTab: View {
+    let network: ContainerCLI.NetworkInfo
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Connected Containers")
+                    .font(.headline)
+
+                Text("Coming soon: List all containers connected to this network with IP addresses")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+            }
+            .padding(20)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
