@@ -507,79 +507,79 @@ struct ContainerRow: View {
 
 // MARK: - Container Detail Panel
 
+// MARK: - Apple Container CLI Native + Capsule Enhancement
+
 struct ContainerDetailPanel: View {
     let container: ContainerSummary
     @ObservedObject var viewModel: ContainerViewModel
-    @State private var selectedTab = "info"
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header with tabs (OrbStack style - compact)
-            VStack(spacing: 0) {
-                HStack(alignment: .center, spacing: 16) {
-                    Text(container.name)
-                        .font(.title2)
-                        .fontWeight(.semibold)
+            // Header
+            HStack(alignment: .center, spacing: 16) {
+                Text(container.name)
+                    .font(.title2)
+                    .fontWeight(.semibold)
 
-                    Spacer()
+                Spacer()
 
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(statusColor)
-                            .frame(width: 8, height: 8)
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 8, height: 8)
 
-                        Text(container.status.displayName)
-                            .font(.caption)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(statusColor.opacity(0.15))
-                    .cornerRadius(12)
+                    Text(container.status.displayName)
+                        .font(.caption)
                 }
-                .padding(.horizontal)
-                .padding(.top, 16)
-                .padding(.bottom, 12)
-
-                HStack(spacing: 0) {
-                    TabButton(title: "Info", icon: "info.circle", isSelected: selectedTab == "info") {
-                        selectedTab = "info"
-                    }
-                    TabButton(title: "Logs", icon: "doc.text", isSelected: selectedTab == "logs") {
-                        selectedTab = "logs"
-                    }
-                    TabButton(title: "Terminal", icon: "terminal", isSelected: selectedTab == "terminal") {
-                        selectedTab = "terminal"
-                    }
-                    TabButton(title: "Files", icon: "folder", isSelected: selectedTab == "files") {
-                        selectedTab = "files"
-                    }
-
-                    Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-
-                Divider()
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(statusColor.opacity(0.15))
+                .cornerRadius(12)
             }
+            .padding(.horizontal)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
 
-            tabContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
+            Divider()
 
-    @ViewBuilder
-    private var tabContent: some View {
-        switch selectedTab {
-        case "info":
-            InfoTabView(container: container, runtime: viewModel.runtime)
-        case "logs":
-            LogsTabView(container: container, viewModel: viewModel)
-        case "terminal":
-            TerminalTabView(container: container)
-        case "files":
-            FilesTabView(container: container, runtime: viewModel.runtime)
-        default:
-            EmptyView()
+            // Native SwiftUI TabView
+            TabView {
+                OverviewTabView(container: container, viewModel: viewModel)
+                    .tabItem {
+                        Label("Overview", systemImage: "info.circle")
+                    }
+                    .tag(0)
+
+                InspectTabView(container: container, runtime: viewModel.runtime)
+                    .tabItem {
+                        Label("Inspect", systemImage: "doc.plaintext")
+                    }
+                    .tag(1)
+
+                LogsTabView(container: container, viewModel: viewModel)
+                    .tabItem {
+                        Label("Logs", systemImage: "doc.text")
+                    }
+                    .tag(2)
+
+                StatsTabView(container: container, runtime: viewModel.runtime)
+                    .tabItem {
+                        Label("Stats", systemImage: "chart.bar")
+                    }
+                    .tag(3)
+
+                TerminalTabView(container: container)
+                    .tabItem {
+                        Label("Terminal", systemImage: "terminal")
+                    }
+                    .tag(4)
+
+                FilesTabView(container: container, runtime: viewModel.runtime)
+                    .tabItem {
+                        Label("Files", systemImage: "folder")
+                    }
+                    .tag(5)
+            }
         }
     }
 
@@ -594,44 +594,48 @@ struct ContainerDetailPanel: View {
     }
 }
 
-// MARK: - Tab Button
+// MARK: - Overview Tab (Apple Container CLI + Capsule Enhancement)
 
-struct TabButton: View {
-    let title: LocalizedStringKey
-    let icon: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.caption)
-                Text(title)
-                    .font(.subheadline)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
-            .foregroundColor(isSelected ? .accentColor : .secondary)
-            .cornerRadius(6)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Info Tab
-
-struct InfoTabView: View {
+struct OverviewTabView: View {
     let container: ContainerSummary
-    let runtime: RuntimeCore
-    @State private var details: ContainerCLI.ContainerDetails?
-    @State private var isLoading = false
-    @State private var errorMessage: String?
+    @ObservedObject var viewModel: ContainerViewModel
+    @State private var restartPolicy: RestartPolicy = .no
+    @State private var autostart: Bool = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                // Apple Container CLI Native: Basic Controls
+                InfoSection(title: "Controls") {
+                    HStack(spacing: 12) {
+                        if container.status == .running {
+                            Button(action: stopContainer) {
+                                Label("Stop", systemImage: "stop.fill")
+                            }
+                            .buttonStyle(.bordered)
+                        } else if container.status.canStart {
+                            Button(action: startContainer) {
+                                Label("Start", systemImage: "play.fill")
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+
+                        Button(action: restartContainer) {
+                            Label("Restart", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(container.status != .running)
+
+                        Spacer()
+
+                        Button(role: .destructive, action: deleteContainer) {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+
+                // Apple Container CLI Native: General Info
                 InfoSection(title: "General") {
                     InfoRow(label: "Name", value: container.name)
                     Divider()
@@ -642,12 +646,14 @@ struct InfoTabView: View {
                     InfoRow(label: "Status", value: container.status.displayName)
                 }
 
+                // Apple Container CLI Native: Resources
                 InfoSection(title: "Resources") {
                     InfoRow(label: "CPUs", value: "\(container.cpus)")
                     Divider()
                     InfoRow(label: "Memory", value: formatMemory(container.memoryBytes))
                 }
 
+                // Apple Container CLI Native: Timestamps
                 InfoSection(title: "Timestamps") {
                     InfoRow(label: "Created", value: formatDate(container.createdAt))
                     if let started = container.startedAt {
@@ -656,6 +662,137 @@ struct InfoTabView: View {
                     }
                 }
 
+                // 🔸 Capsule Enhancement: Restart Policy (Software Daemon)
+                InfoSection(title: "Capsule Enhancement: Restart Policy") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Automatically restart this container using Capsule's restart daemon")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Picker("Policy", selection: $restartPolicy) {
+                            Text("No").tag(RestartPolicy.no)
+                            Text("Always").tag(RestartPolicy.always)
+                            Text("On Failure").tag(RestartPolicy.onFailure)
+                            Text("Unless Stopped").tag(RestartPolicy.unlessStopped)
+                        }
+                        .pickerStyle(.segmented)
+
+                        if restartPolicy != .no {
+                            HStack(spacing: 6) {
+                                Image(systemName: "info.circle")
+                                    .font(.caption)
+                                    .foregroundStyle(.blue)
+                                Text("Restart daemon will monitor and restart this container")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                .task {
+                    loadRestartPolicy()
+                }
+                .onChange(of: restartPolicy) { _, newValue in
+                    saveRestartPolicy(newValue)
+                }
+
+                // 🔸 Capsule Enhancement: Startup (Auto-start with app)
+                InfoSection(title: "Capsule Enhancement: Startup") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle("Start with Capsule", isOn: $autostart)
+                            .toggleStyle(.switch)
+
+                        Text("Automatically start this container when Capsule launches")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .task {
+                    loadAutostart()
+                }
+                .onChange(of: autostart) { _, newValue in
+                    saveAutostart(newValue)
+                }
+
+                Spacer(minLength: 16)
+            }
+            .padding(20)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    // MARK: - Apple Container CLI Native Actions
+
+    private func startContainer() {
+        Task { try? await viewModel.runtime.startContainer(id: container.id) }
+    }
+
+    private func stopContainer() {
+        Task { try? await viewModel.runtime.stopContainer(id: container.id) }
+    }
+
+    private func restartContainer() {
+        Task {
+            try? await viewModel.runtime.stopContainer(id: container.id)
+            try? await Task.sleep(for: .seconds(1))
+            try? await viewModel.runtime.startContainer(id: container.id)
+        }
+    }
+
+    private func deleteContainer() {
+        Task { try? await viewModel.runtime.deleteContainer(id: container.id) }
+    }
+
+    // MARK: - Capsule Enhancement: Restart Policy
+
+    private func loadRestartPolicy() {
+        if let policyString = UserDefaults.standard.string(forKey: "restart_policy_\(container.id)"),
+           let policy = RestartPolicy(rawValue: policyString) {
+            restartPolicy = policy
+        }
+    }
+
+    private func saveRestartPolicy(_ policy: RestartPolicy) {
+        UserDefaults.standard.set(policy.rawValue, forKey: "restart_policy_\(container.id)")
+    }
+
+    // MARK: - Capsule Enhancement: Autostart
+
+    private func loadAutostart() {
+        autostart = UserDefaults.standard.bool(forKey: "autostart_\(container.id)")
+    }
+
+    private func saveAutostart(_ value: Bool) {
+        UserDefaults.standard.set(value, forKey: "autostart_\(container.id)")
+    }
+
+    // MARK: - Helpers
+
+    private func formatMemory(_ bytes: UInt64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .memory
+        return formatter.string(fromByteCount: Int64(bytes))
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+// MARK: - Inspect Tab (Apple Container CLI Native: container inspect)
+
+struct InspectTabView: View {
+    let container: ContainerSummary
+    let runtime: RuntimeCore
+    @State private var details: ContainerCLI.ContainerDetails?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
                 if isLoading {
                     HStack {
                         ProgressView()
@@ -665,12 +802,10 @@ struct InfoTabView: View {
                             .foregroundStyle(.secondary)
                     }
                 } else if let errorMessage {
-                    InfoSection(title: "Inspect") {
-                        InfoRow(label: "Error", value: errorMessage)
+                    InfoSection(title: "Error") {
+                        InfoRow(label: "Message", value: errorMessage)
                     }
-                }
-
-                if let details {
+                } else if let details {
                     inspectSections(details)
                 }
 
@@ -768,18 +903,6 @@ struct InfoTabView: View {
         }
         return (String(value[..<index]), String(value[value.index(after: index)...]))
     }
-
-    private func formatMemory(_ bytes: UInt64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .memory
-        return formatter.string(fromByteCount: Int64(bytes))
-    }
-
-    private func formatDate(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
 }
 
 // MARK: - Info Section
@@ -859,7 +982,137 @@ struct InfoTwoColumnRow: View {
     }
 }
 
-// MARK: - Logs Tab
+// MARK: - Stats Tab (Apple Container CLI Native: container stats)
+
+struct StatsTabView: View {
+    let container: ContainerSummary
+    let runtime: RuntimeCore
+    @State private var stats: ContainerStats?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if isLoading {
+                HStack {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Loading stats...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let errorMessage {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.secondary)
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
+            } else if let stats {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        InfoSection(title: "CPU") {
+                            InfoRow(label: "Usage", value: String(format: "%.2f%%", stats.cpuPercent))
+                        }
+
+                        InfoSection(title: "Memory") {
+                            InfoRow(label: "Usage", value: formatBytes(stats.memoryUsage))
+                            Divider()
+                            InfoRow(label: "Limit", value: formatBytes(stats.memoryLimit))
+                            Divider()
+                            InfoRow(label: "Percent", value: String(format: "%.2f%%", stats.memoryPercent))
+                        }
+
+                        InfoSection(title: "Network") {
+                            InfoRow(label: "RX", value: formatBytes(stats.networkRx))
+                            Divider()
+                            InfoRow(label: "TX", value: formatBytes(stats.networkTx))
+                        }
+
+                        InfoSection(title: "Block I/O") {
+                            InfoRow(label: "Read", value: formatBytes(stats.blockRead))
+                            Divider()
+                            InfoRow(label: "Write", value: formatBytes(stats.blockWrite))
+                        }
+
+                        Spacer(minLength: 16)
+                    }
+                    .padding(20)
+                }
+                .background(Color(nsColor: .windowBackgroundColor))
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "chart.bar")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.secondary)
+                    Text("Container must be running to view stats")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .task {
+            await loadStats()
+        }
+    }
+
+    private func loadStats() async {
+        guard container.status == .running else {
+            stats = nil
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+        do {
+            stats = try await runtime.getContainerStats(id: container.id)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+
+    private func formatBytes(_ bytes: UInt64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .binary
+        return formatter.string(fromByteCount: Int64(bytes))
+    }
+}
+
+// MARK: - Tab Button (Shared Component for legacy views)
+
+struct TabButton: View {
+    let title: LocalizedStringKey
+    let icon: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.caption)
+                Text(title)
+                    .font(.subheadline)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+            .foregroundColor(isSelected ? .accentColor : .secondary)
+            .cornerRadius(6)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Logs Tab (Apple Container CLI Native: container logs)
 
 struct LogsTabView: View {
     let container: ContainerSummary

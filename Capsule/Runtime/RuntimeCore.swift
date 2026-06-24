@@ -244,6 +244,17 @@ actor RuntimeCore {
         }
     }
 
+    /// Get container resource usage statistics
+    /// - Parameter id: Container ID
+    /// - Returns: Container stats
+    func getContainerStats(id: String) async throws -> ContainerStats {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        return try await cli.getContainerStats(id: id)
+    }
+
     /// List files in a running container.
     func listFiles(containerID: String, path: String) async throws -> [ContainerCLI.FileInfo] {
         guard isInitialized else {

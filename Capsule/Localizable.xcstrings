@@ -215,9 +215,6 @@
     "Advanced settings inherit from service definition" : {
 
     },
-    "After parsing, Capsule fills the Configure form so every field can be reviewed and edited before creation." : {
-
-    },
     "ALL" : {
 
     },
@@ -553,9 +550,6 @@
         }
       }
     },
-    "Convert a command" : {
-
-    },
     "Copy Path" : {
 
     },
@@ -880,9 +874,6 @@
 
     },
     "Docker" : {
-
-    },
-    "Docker Run" : {
 
     },
     "docker.io/library/nginx:latest" : {
@@ -1944,13 +1935,7 @@
     "Parse" : {
 
     },
-    "Parse to Configure" : {
-
-    },
-    "Paste a docker run command. Capsule will parse it and fill the configuration form." : {
-
-    },
-    "Paste Docker Run" : {
+    "Paste a docker run command (multi-line supported). Capsule will parse it and fill the configuration form." : {
 
     },
     "Paste your Docker run command:" : {

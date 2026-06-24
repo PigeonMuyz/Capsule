@@ -286,6 +286,55 @@ actor ContainerCLI {
         }
     }
 
+    /// Get container resource usage statistics (container stats)
+    func getContainerStats(id: String) async throws -> ContainerStats {
+        logger.info("Fetching stats for container: \(id)")
+
+        let output = try await runCommand(["stats", "--no-stream", "--format", "json", id])
+
+        // Parse JSON output from container stats
+        guard let data = output.data(using: .utf8) else {
+            throw ContainerError.invalidResponse("Invalid stats data")
+        }
+
+        let decoder = JSONDecoder()
+        let statsResponse = try decoder.decode(StatsResponse.self, from: data)
+
+        return ContainerStats(
+            cpuPercent: statsResponse.cpuPercent ?? 0,
+            memoryUsage: statsResponse.memoryUsage ?? 0,
+            memoryLimit: statsResponse.memoryLimit ?? 0,
+            memoryPercent: statsResponse.memoryPercent ?? 0,
+            networkRx: statsResponse.networkRx ?? 0,
+            networkTx: statsResponse.networkTx ?? 0,
+            blockRead: statsResponse.blockRead ?? 0,
+            blockWrite: statsResponse.blockWrite ?? 0
+        )
+    }
+
+    // Stats response from CLI
+    private struct StatsResponse: Codable {
+        let cpuPercent: Double?
+        let memoryUsage: UInt64?
+        let memoryLimit: UInt64?
+        let memoryPercent: Double?
+        let networkRx: UInt64?
+        let networkTx: UInt64?
+        let blockRead: UInt64?
+        let blockWrite: UInt64?
+
+        enum CodingKeys: String, CodingKey {
+            case cpuPercent = "CPUPerc"
+            case memoryUsage = "MemUsage"
+            case memoryLimit = "MemLimit"
+            case memoryPercent = "MemPerc"
+            case networkRx = "NetRx"
+            case networkTx = "NetTx"
+            case blockRead = "BlockRead"
+            case blockWrite = "BlockWrite"
+        }
+    }
+
     // MARK: - Container Inspect
 
     struct ContainerDetails: Codable {

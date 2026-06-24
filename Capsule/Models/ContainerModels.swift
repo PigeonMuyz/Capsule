@@ -184,6 +184,20 @@ struct ContainerSummary: Identifiable, Hashable {
     }
 }
 
+// MARK: - Container Stats
+
+/// Container resource usage statistics (from `container stats`)
+struct ContainerStats {
+    let cpuPercent: Double
+    let memoryUsage: UInt64
+    let memoryLimit: UInt64
+    let memoryPercent: Double
+    let networkRx: UInt64
+    let networkTx: UInt64
+    let blockRead: UInt64
+    let blockWrite: UInt64
+}
+
 // MARK: - Log Line
 
 /// Log line from container output
@@ -207,6 +221,7 @@ enum ContainerError: Error, LocalizedError {
     case containerNotFound(String)
     case containerAlreadyExists(String)
     case invalidConfiguration(String)
+    case invalidResponse(String)
     case startFailed(String)
     case stopFailed(String)
     case deleteFailed(String)
@@ -222,6 +237,8 @@ enum ContainerError: Error, LocalizedError {
             return "Container with name '\(name)' already exists"
         case .invalidConfiguration(let reason):
             return "Invalid configuration: \(reason)"
+        case .invalidResponse(let reason):
+            return "Invalid response: \(reason)"
         case .startFailed(let reason):
             return "Failed to start container: \(reason)"
         case .stopFailed(let reason):
