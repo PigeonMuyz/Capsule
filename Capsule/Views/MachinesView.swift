@@ -154,7 +154,7 @@ struct MachineRow: View {
     }
 }
 
-// MARK: - Machine Detail Panel
+// MARK: - Machine Detail Panel (Apple Container CLI Native)
 
 struct MachineDetailPanel: View {
     let machine: ContainerCLI.MachineInfo
@@ -162,6 +162,7 @@ struct MachineDetailPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Header
             HStack(alignment: .center, spacing: 16) {
                 Text(machine.name)
                     .font(.title2)
@@ -169,56 +170,111 @@ struct MachineDetailPanel: View {
 
                 Spacer()
 
-                if machine.isRunning {
-                    Button(action: { Task { try? await viewModel.runtime.stopMachine(name: machine.name) } }) {
-                        Label("Stop", systemImage: "stop.fill")
-                    }
-                    .buttonStyle(.bordered)
-                } else {
-                    Button(action: { Task { try? await viewModel.runtime.startMachine(name: machine.name) } }) {
-                        Label("Start", systemImage: "play.fill")
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(machine.isRunning ? Color.green : Color.gray)
+                        .frame(width: 8, height: 8)
 
-                Button(action: openShell) {
-                    Label("Open Shell", systemImage: "terminal")
+                    Text(machine.state)
+                        .font(.caption)
                 }
-                .buttonStyle(.bordered)
-
-                Menu {
-                    Button("Delete", role: .destructive) {
-                        Task { try? await viewModel.runtime.deleteMachine(name: machine.name) }
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background((machine.isRunning ? Color.green : Color.gray).opacity(0.15))
+                .cornerRadius(12)
             }
             .padding(.horizontal)
-            .padding(.vertical, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    InfoSection(title: "General") {
-                        InfoRow(label: "Name", value: machine.name)
-                        InfoRow(label: "State", value: machine.state)
-                        if let ip = machine.ipAddress {
-                            InfoRow(label: "IP", value: ip)
-                        }
+            // Native SwiftUI TabView
+            TabView {
+                MachineOverviewTab(machine: machine, viewModel: viewModel)
+                    .tabItem {
+                        Label("Overview", systemImage: "info.circle")
                     }
+                    .tag(0)
 
-                    InfoSection(title: "Resources") {
-                        InfoRow(label: "CPUs", value: "\(machine.cpus)")
-                        InfoRow(label: "Memory", value: formatMemory(machine.memoryBytes))
+                MachineConsoleTab(machine: machine)
+                    .tabItem {
+                        Label("Console", systemImage: "terminal")
                     }
-                }
-                .padding()
+                    .tag(1)
+
+                MachineLogsTab(machine: machine, viewModel: viewModel)
+                    .tabItem {
+                        Label("Logs", systemImage: "doc.text")
+                    }
+                    .tag(2)
             }
         }
+    }
+}
+
+// MARK: - Overview Tab
+
+struct MachineOverviewTab: View {
+    let machine: ContainerCLI.MachineInfo
+    @ObservedObject var viewModel: ContainerViewModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // Actions
+                InfoSection(title: "Controls") {
+                    HStack(spacing: 12) {
+                        if machine.isRunning {
+                            Button(action: stopMachine) {
+                                Label("Stop", systemImage: "stop.fill")
+                            }
+                            .buttonStyle(.bordered)
+                        } else {
+                            Button(action: startMachine) {
+                                Label("Start", systemImage: "play.fill")
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+
+                        Button(action: openShell) {
+                            Label("Open Shell", systemImage: "terminal")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!machine.isRunning)
+
+                        Spacer()
+
+                        Button(role: .destructive, action: deleteMachine) {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+
+                // General
+                InfoSection(title: "General") {
+                    InfoRow(label: "Name", value: machine.name)
+                    Divider()
+                    InfoRow(label: "State", value: machine.state)
+                    if let ip = machine.ipAddress {
+                        Divider()
+                        InfoRow(label: "IP Address", value: ip)
+                    }
+                }
+
+                // Resources
+                InfoSection(title: "Resources") {
+                    InfoRow(label: "CPUs", value: "\(machine.cpus)")
+                    Divider()
+                    InfoRow(label: "Memory", value: formatMemory(machine.memoryBytes))
+                }
+
+                Spacer(minLength: 16)
+            }
+            .padding(20)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private func formatMemory(_ bytes: Int) -> String {
@@ -226,6 +282,18 @@ struct MachineDetailPanel: View {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .memory
         return formatter.string(fromByteCount: Int64(bytes))
+    }
+
+    private func startMachine() {
+        Task { try? await viewModel.runtime.startMachine(name: machine.name) }
+    }
+
+    private func stopMachine() {
+        Task { try? await viewModel.runtime.stopMachine(name: machine.name) }
+    }
+
+    private func deleteMachine() {
+        Task { try? await viewModel.runtime.deleteMachine(name: machine.name) }
     }
 
     /// Open an interactive shell into the machine in Terminal.app.
@@ -236,6 +304,70 @@ struct MachineDetailPanel: View {
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         process.arguments = ["-e", script]
         try? process.run()
+    }
+}
+
+// MARK: - Console Tab
+
+struct MachineConsoleTab: View {
+    let machine: ContainerCLI.MachineInfo
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Interactive Shell")
+                .font(.headline)
+
+            Text("Click the button below to open an interactive shell in Terminal.app")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Button(action: openShell) {
+                Label("Open Terminal", systemImage: "terminal.fill")
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!machine.isRunning)
+
+            if !machine.isRunning {
+                Text("Machine must be running to access console")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(20)
+    }
+
+    private func openShell() {
+        let command = "/usr/local/bin/container machine run -n \(machine.name)"
+        let script = "tell application \"Terminal\" to do script \"\(command)\""
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-e", script]
+        try? process.run()
+    }
+}
+
+// MARK: - Logs Tab
+
+struct MachineLogsTab: View {
+    let machine: ContainerCLI.MachineInfo
+    @ObservedObject var viewModel: ContainerViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Machine Logs")
+                .font(.headline)
+
+            Text("Coming soon: View machine startup and runtime logs using container machine logs")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(20)
     }
 }
 
