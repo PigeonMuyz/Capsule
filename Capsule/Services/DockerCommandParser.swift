@@ -5,9 +5,14 @@ struct DockerCommandParser {
 
     /// Parse a docker run command into a ContainerSpec
     static func parseDockerRun(_ command: String) throws -> ContainerSpec {
-        // Remove "docker run" prefix
-        var args = command.components(separatedBy: .whitespaces)
+        // Normalize the command: remove line continuations and extra whitespace
+        let normalized = command
+            .replacingOccurrences(of: "\\\n", with: " ")
+            .replacingOccurrences(of: "\\\r\n", with: " ")
+            .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
+
+        var args = normalized
 
         guard args.first == "docker" && args.count > 1 && args[1] == "run" else {
             throw ParseError.invalidCommand
@@ -40,6 +45,8 @@ struct DockerCommandParser {
         var shmSize: String?
         var capAdd: [String] = []
         var capDrop: [String] = []
+        var devices: [String] = []
+        var sysctls: [String] = []
         var interactive = false
         var tty = false
 
@@ -164,6 +171,14 @@ struct DockerCommandParser {
                 i += 1
                 capDrop.append(args[i])
 
+            case "--device":
+                i += 1
+                devices.append(args[i])
+
+            case "--sysctl":
+                i += 1
+                sysctls.append(args[i])
+
             case "--rm":
                 removeAfterStop = true
 
@@ -231,6 +246,10 @@ struct DockerCommandParser {
         spec.capDrop = capDrop
         spec.interactive = interactive
         spec.tty = tty
+
+        // Note: --device and --sysctl are stored but not directly supported by Container CLI
+        // They would need special handling in RuntimeCore
+
         return spec
     }
 

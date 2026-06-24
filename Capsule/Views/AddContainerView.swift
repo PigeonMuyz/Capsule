@@ -14,26 +14,23 @@ struct AddContainerView: View {
     @ObservedObject var composeManager: ComposeManager
 
     enum Mode: Int, CaseIterable, Identifiable {
-        case configure, dockerRun, compose
+        case configure, compose
         var id: Int { rawValue }
         var title: String {
             switch self {
             case .configure: return NSLocalizedString("Configure", comment: "")
-            case .dockerRun: return NSLocalizedString("Docker Run", comment: "")
             case .compose: return NSLocalizedString("Compose", comment: "")
             }
         }
         var subtitle: String {
             switch self {
             case .configure: return NSLocalizedString("Build manually", comment: "")
-            case .dockerRun: return NSLocalizedString("Convert a command", comment: "")
             case .compose: return NSLocalizedString("Import services", comment: "")
             }
         }
         var icon: String {
             switch self {
             case .configure: return "slider.horizontal.3"
-            case .dockerRun: return "terminal"
             case .compose: return "square.stack.3d.up"
             }
         }
@@ -207,7 +204,6 @@ struct AddContainerView: View {
                 Group {
                     switch mode {
                     case .configure: configureForm
-                    case .dockerRun:  dockerRunForm
                     case .compose:    composeForm
                     }
                 }
@@ -539,7 +535,7 @@ struct AddContainerView: View {
         }
     }
 
-    // MARK: - Docker Run
+    // MARK: - Docker Run Import
 
     private var dockerRunImportSheet: some View {
         NavigationStack {
@@ -548,7 +544,7 @@ struct AddContainerView: View {
                     .font(.system(.body, design: .monospaced))
                     .scrollContentBackground(.hidden)
                     .padding(8)
-                    .frame(height: 180)
+                    .frame(height: 240)
                     .background(Color(nsColor: .textBackgroundColor))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
 
@@ -558,7 +554,7 @@ struct AddContainerView: View {
                         .foregroundStyle(.red)
                 }
 
-                Text("Paste a docker run command. Capsule will parse it and fill the configuration form.")
+                Text("Paste a docker run command (multi-line supported). Capsule will parse it and fill the configuration form.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -581,44 +577,8 @@ struct AddContainerView: View {
                     .disabled(dockerCommand.trimmed.isEmpty)
                 }
             }
-            .frame(width: 580, height: 380)
+            .frame(width: 620, height: 460)
         }
-    }
-
-    private var dockerRunForm: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Label("Paste Docker Run", systemImage: "terminal")
-                    .font(.headline)
-                Spacer()
-                Button("Parse to Configure") {
-                    parseDockerRunIntoConfigure()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(dockerCommand.trimmed.isEmpty)
-            }
-
-            TextEditor(text: $dockerCommand)
-                .font(.system(.body, design: .monospaced))
-                .scrollContentBackground(.hidden)
-                .padding(8)
-                .frame(height: 150)
-                .background(Color(nsColor: .textBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            if let dockerParseError {
-                Label(dockerParseError, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-
-            Text("After parsing, Capsule fills the Configure form so every field can be reviewed and edited before creation.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Spacer()
-        }
-        .padding()
     }
 
     private func parseDockerRunIntoConfigure() {
@@ -626,7 +586,6 @@ struct AddContainerView: View {
             let spec = try DockerCommandParser.parseDockerRun(dockerCommand)
             apply(spec: spec)
             dockerParseError = nil
-            mode = .configure
         } catch {
             dockerParseError = error.localizedDescription
         }
@@ -952,8 +911,6 @@ struct AddContainerView: View {
         switch mode {
         case .configure:
             return image.trimmed.isEmpty
-        case .dockerRun:
-            return true
         case .compose:
             return projectName.trimmed.isEmpty || composeServices.isEmpty
         }
@@ -1232,11 +1189,6 @@ struct AddContainerView: View {
                     } else {
                         await viewModel.createContainer(spec: spec)
                     }
-
-                case .dockerRun:
-                    parseDockerRunIntoConfigure()
-                    isWorking = false
-                    return
 
                 case .compose:
                     _ = try await composeManager.createProject(
