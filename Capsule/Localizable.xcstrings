@@ -224,6 +224,9 @@
     "alpine:3.22" : {
 
     },
+    "Always" : {
+
+    },
     "App cache" : {
 
     },
@@ -258,7 +261,16 @@
     "Auto-scroll" : {
 
     },
+    "Automatically restart this container using Capsule's restart daemon" : {
+
+    },
+    "Automatically start this container when Capsule launches" : {
+
+    },
     "backend" : {
+
+    },
+    "Block I/O" : {
 
     },
     "Bridge" : {
@@ -293,6 +305,12 @@
 
     },
     "Capsule creates the container first. Use Create & Start when you want the payload to run immediately." : {
+
+    },
+    "Capsule Enhancement: Restart Policy" : {
+
+    },
+    "Capsule Enhancement: Startup" : {
 
     },
     "Changing the language takes effect after restarting Capsule." : {
@@ -494,6 +512,9 @@
         }
       }
     },
+    "Container must be running to view stats" : {
+
+    },
     "Container name" : {
 
     },
@@ -550,7 +571,13 @@
         }
       }
     },
+    "Controls" : {
+
+    },
     "Copy Path" : {
+
+    },
+    "CPU" : {
 
     },
     "CPUs" : {
@@ -1301,6 +1328,9 @@
     "Lifecycle" : {
 
     },
+    "Limit" : {
+
+    },
     "Linux" : {
 
     },
@@ -1327,6 +1357,9 @@
       }
     },
     "Loading inspect data..." : {
+
+    },
+    "Loading stats..." : {
 
     },
     "Log Retention" : {
@@ -1425,6 +1458,9 @@
           }
         }
       }
+    },
+    "Message" : {
+
     },
     "Mode" : {
       "extractionState" : "stale",
@@ -1663,6 +1699,9 @@
     "nginx:latest" : {
 
     },
+    "No" : {
+
+    },
     "No cached logs yet" : {
 
     },
@@ -1892,6 +1931,9 @@
         }
       }
     },
+    "On Failure" : {
+
+    },
     "One mapping per line (e.g. 8080:80)" : {
 
     },
@@ -1930,6 +1972,9 @@
       }
     },
     "Override image command" : {
+
+    },
+    "Overview" : {
 
     },
     "Parse" : {
@@ -2006,6 +2051,9 @@
         }
       }
     },
+    "Percent" : {
+
+    },
     "Permissions" : {
 
     },
@@ -2030,6 +2078,9 @@
           }
         }
       }
+    },
+    "Policy" : {
+
     },
     "Port Mappings" : {
 
@@ -2168,6 +2219,9 @@
       }
     },
     "Purpose" : {
+
+    },
+    "Read" : {
 
     },
     "Read-only root filesystem" : {
@@ -2334,6 +2388,9 @@
 
     },
     "Restart" : {
+
+    },
+    "Restart daemon will monitor and restart this container" : {
 
     },
     "Restart Policy" : {
@@ -2521,6 +2578,9 @@
       }
     },
     "Start the container to open a shell" : {
+
+    },
+    "Start with Capsule" : {
 
     },
     "Start with container runtime" : {
@@ -3055,7 +3115,13 @@
     "Unable to browse files" : {
 
     },
+    "Unless Stopped" : {
+
+    },
     "Uptime" : {
+
+    },
+    "Usage" : {
 
     },
     "Use image default" : {
@@ -3179,6 +3245,9 @@
 
     },
     "Working Directory" : {
+
+    },
+    "Write" : {
 
     }
   },
