@@ -151,6 +151,7 @@ struct AddContainerView: View {
     @State private var networkChoice = ""    // empty → default network
     @State private var availableNetworks: [ContainerCLI.NetworkInfo] = []
     @State private var restartPolicy: RestartPolicy = .no
+    @State private var autostart = false
     @State private var removeAfterStop = false
     @State private var readOnlyRootfs = false
     @State private var useInit = false
@@ -449,6 +450,15 @@ struct AddContainerView: View {
                 }
             } header: {
                 Text("Restart Policy")
+            }
+
+            Section {
+                Toggle("Start with container runtime", isOn: $autostart)
+                Text("When enabled, this container will start automatically when the container runtime starts.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("Startup")
             }
 
             Section {
@@ -1214,6 +1224,7 @@ struct AddContainerView: View {
                     spec.readOnlyRootfs = readOnlyRootfs
                     spec.useInit = useInit
                     spec.restartPolicy = restartPolicy
+                    spec.autostart = autostart
                     if startAfterCreate {
                         let summary = try await viewModel.runtime.createContainer(spec)
                         try await viewModel.runtime.startContainer(id: summary.id)

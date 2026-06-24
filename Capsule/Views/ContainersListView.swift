@@ -66,15 +66,43 @@ struct ContainersListColumn: View {
                 emptyState
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(composeManager.projects) { project in
-                            projectGroup(project)
+                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        // Running containers section
+                        let runningContainers = standaloneContainers.filter { $0.status == .running || $0.status == .starting }
+                        if !runningContainers.isEmpty {
+                            Section {
+                                ForEach(runningContainers) { container in
+                                    containerRow(container)
+                                }
+                            } header: {
+                                sectionHeader("Running")
+                            }
                         }
 
-                        ForEach(standaloneContainers) { container in
-                            containerRow(container)
+                        // Compose projects section
+                        if !composeManager.projects.isEmpty {
+                            Section {
+                                ForEach(composeManager.projects) { project in
+                                    projectGroup(project)
+                                }
+                            } header: {
+                                sectionHeader("Projects")
+                            }
+                        }
+
+                        // Stopped containers section
+                        let stoppedContainers = standaloneContainers.filter { $0.status != .running && $0.status != .starting }
+                        if !stoppedContainers.isEmpty {
+                            Section {
+                                ForEach(stoppedContainers) { container in
+                                    containerRow(container)
+                                }
+                            } header: {
+                                sectionHeader("Stopped")
+                            }
                         }
                     }
+                    .padding(.bottom, 16)
                 }
             }
         }
@@ -83,6 +111,21 @@ struct ContainersListColumn: View {
         .sheet(isPresented: $showingAddSheet) {
             AddContainerView(viewModel: viewModel, composeManager: composeManager)
         }
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+        .padding(.bottom, 8)
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 
     private var listHeader: some View {
@@ -146,54 +189,70 @@ struct ContainersListColumn: View {
         let isExpanded = expandedProjects.contains(project.id)
         let isSelected = selection == .project(project.id)
 
-        Button(action: { selection = .project(project.id) }) {
-            HStack(spacing: 8) {
-                Button(action: { toggleExpanded(project.id) }) {
-                    Image(systemName: "chevron.right")
+        VStack(spacing: 0) {
+            Button(action: { selection = .project(project.id) }) {
+                HStack(spacing: 10) {
+                    Button(action: { toggleExpanded(project.id) }) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                            .frame(width: 16, height: 16)
+                    }
+                    .buttonStyle(.plain)
+
+                    Image(systemName: "square.stack.3d.up.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.indigo)
+
+                    Text(project.name)
+                        .font(.body)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+
+                    Spacer()
+
+                    Text("\(project.services.count) services")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+
+                    Circle()
+                        .fill(projectStatusColor(project.status))
+                        .frame(width: 8, height: 8)
                 }
-                .buttonStyle(.plain)
-
-                Image(systemName: "square.stack.3d.up.fill")
-                    .foregroundStyle(.indigo)
-
-                Circle()
-                    .fill(projectStatusColor(project.status))
-                    .frame(width: 8, height: 8)
-
-                Text(project.name)
-                    .font(.body)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-
-                Spacer()
-
-                Text("\(project.services.count)")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(isSelected ? Color.accentColor.opacity(0.12) : Color(nsColor: .controlBackgroundColor))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+                )
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
-            if project.status == .stopped {
-                Button("Start", action: { startProject(project) })
-            } else {
-                Button("Stop", action: { stopProject(project) })
+            .padding(.vertical, 4)
+            .contextMenu {
+                if project.status == .stopped {
+                    Button("Start", action: { startProject(project) })
+                } else {
+                    Button("Stop", action: { stopProject(project) })
+                }
+                Divider()
+                Button("Remove (Keep Volumes)", role: .destructive, action: { removeProject(project, volumes: false) })
+                Button("Remove All", role: .destructive, action: { removeProject(project, volumes: true) })
             }
-            Divider()
-            Button("Remove (Keep Volumes)", role: .destructive, action: { removeProject(project, volumes: false) })
-            Button("Remove All", role: .destructive, action: { removeProject(project, volumes: true) })
-        }
 
-        if isExpanded {
-            ForEach(projectContainers(project)) { container in
-                containerRow(container, indented: true)
+            if isExpanded {
+                VStack(spacing: 4) {
+                    ForEach(projectContainers(project)) { container in
+                        containerRow(container, indented: true)
+                    }
+                }
+                .padding(.top, 4)
             }
         }
     }
@@ -201,7 +260,7 @@ struct ContainersListColumn: View {
     // MARK: - Container row
 
     private func containerRow(_ container: ContainerSummary, indented: Bool = false) -> some View {
-        ContainerRow(
+        ContainerCard(
             container: container,
             isSelected: selection == .container(container.id),
             indented: indented,
@@ -272,7 +331,109 @@ struct ContainersListColumn: View {
     }
 }
 
-// MARK: - Container Row
+// MARK: - Container Card (OrbStack-style)
+
+struct ContainerCard: View {
+    let container: ContainerSummary
+    let isSelected: Bool
+    var indented: Bool = false
+    let onSelect: () -> Void
+    let onStart: () -> Void
+    let onStop: () -> Void
+    let onRemove: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(container.name)
+                        .font(.body)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+
+                    Text(container.image)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                HStack(spacing: 8) {
+                    if container.status == .running {
+                        Button(action: onStop) {
+                            Image(systemName: "stop.fill")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.borderless)
+                        .opacity(isHovered ? 1 : 0)
+                    } else if container.status.canStart {
+                        Button(action: onStart) {
+                            Image(systemName: "play.fill")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.borderless)
+                        .opacity(isHovered ? 1 : 0)
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(cardBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, indented ? 20 : 12)
+        .padding(.vertical, 4)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering
+            }
+        }
+        .contextMenu {
+            if container.status == .running {
+                Button("Stop", action: onStop)
+            } else if container.status.canStart {
+                Button("Start", action: onStart)
+            }
+            Divider()
+            Button("Remove", role: .destructive, action: onRemove)
+        }
+    }
+
+    private var cardBackground: Color {
+        if isSelected {
+            return Color.accentColor.opacity(0.12)
+        } else if isHovered {
+            return Color(nsColor: .controlBackgroundColor).opacity(0.6)
+        } else {
+            return Color(nsColor: .controlBackgroundColor)
+        }
+    }
+
+    private var statusColor: Color {
+        switch container.status {
+        case .running: return .green
+        case .starting: return .orange
+        case .stopped, .created: return .gray
+        case .failed: return .red
+        default: return .secondary
+        }
+    }
+}
+
+// MARK: - Container Row (Legacy - keep for compatibility)
 
 struct ContainerRow: View {
     let container: ContainerSummary
@@ -470,22 +631,27 @@ struct InfoTabView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 20) {
                 InfoSection(title: "General") {
                     InfoRow(label: "Name", value: container.name)
+                    Divider()
                     InfoRow(label: "ID", value: String(container.id.prefix(12)))
+                    Divider()
                     InfoRow(label: "Image", value: container.image)
+                    Divider()
                     InfoRow(label: "Status", value: container.status.displayName)
                 }
 
                 InfoSection(title: "Resources") {
                     InfoRow(label: "CPUs", value: "\(container.cpus)")
+                    Divider()
                     InfoRow(label: "Memory", value: formatMemory(container.memoryBytes))
                 }
 
                 InfoSection(title: "Timestamps") {
                     InfoRow(label: "Created", value: formatDate(container.createdAt))
                     if let started = container.startedAt {
+                        Divider()
                         InfoRow(label: "Started", value: formatDate(started))
                     }
                 }
@@ -510,8 +676,9 @@ struct InfoTabView: View {
 
                 Spacer(minLength: 16)
             }
-            .padding()
+            .padding(20)
         }
+        .background(Color(nsColor: .windowBackgroundColor))
         .task(id: container.id) {
             await loadDetails()
         }
@@ -522,7 +689,9 @@ struct InfoTabView: View {
         InfoSection(title: "Command") {
             InfoRow(label: "Executable", value: details.configuration.initProcess?.executable ?? "--")
             let arguments = details.configuration.initProcess?.arguments?.joined(separator: " ") ?? ""
+            Divider()
             InfoRow(label: "Arguments", value: arguments.isEmpty ? "--" : arguments)
+            Divider()
             InfoRow(label: "Workdir", value: details.configuration.initProcess?.workingDirectory ?? "--")
         }
 
@@ -531,7 +700,10 @@ struct InfoTabView: View {
             if mounts.isEmpty {
                 InfoRow(label: "Mounts", value: "None")
             } else {
-                ForEach(mounts) { mount in
+                ForEach(Array(mounts.enumerated()), id: \.offset) { index, mount in
+                    if index > 0 {
+                        Divider()
+                    }
                     InfoTwoColumnRow(
                         leadingLabel: mount.source.isEmpty ? "(runtime)" : mount.source,
                         trailingLabel: mount.destination
@@ -545,7 +717,10 @@ struct InfoTabView: View {
             if ports.isEmpty {
                 InfoRow(label: "Ports", value: "None")
             } else {
-                ForEach(ports) { port in
+                ForEach(Array(ports.enumerated()), id: \.offset) { index, port in
+                    if index > 0 {
+                        Divider()
+                    }
                     let proto = port.proto ?? "tcp"
                     let host = port.hostAddress ?? "0.0.0.0"
                     let hostPort = port.hostPort.map(String.init) ?? "-"
@@ -562,7 +737,10 @@ struct InfoTabView: View {
             if environment.isEmpty {
                 InfoRow(label: "Environment", value: "None")
             } else {
-                ForEach(environment, id: \.self) { item in
+                ForEach(Array(environment.enumerated()), id: \.offset) { index, item in
+                    if index > 0 {
+                        Divider()
+                    }
                     let pair = splitEnvironment(item)
                     InfoRow(label: LocalizedStringKey(pair.key), value: pair.value)
                 }
@@ -611,16 +789,21 @@ struct InfoSection<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.headline)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 0) {
                 content
             }
-            .padding()
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(8)
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+            )
         }
     }
 }
@@ -632,18 +815,18 @@ struct InfoRow: View {
     let value: String
 
     var body: some View {
-        HStack {
+        HStack(alignment: .top, spacing: 12) {
             Text(label)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .frame(width: 100, alignment: .leading)
+                .frame(minWidth: 90, alignment: .leading)
 
             Text(value)
-                .font(.system(.subheadline, design: .monospaced))
+                .font(.subheadline)
                 .textSelection(.enabled)
-
-            Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(.vertical, 6)
     }
 }
 
@@ -652,21 +835,27 @@ struct InfoTwoColumnRow: View {
     let trailingLabel: String
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             Text(leadingLabel)
-                .font(.system(.subheadline, design: .monospaced))
+                .font(.subheadline)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .textSelection(.enabled)
+                .foregroundStyle(.secondary)
 
-            Spacer(minLength: 16)
+            Spacer(minLength: 8)
+
+            Image(systemName: "arrow.right")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
 
             Text(trailingLabel)
-                .font(.system(.subheadline, design: .monospaced))
+                .font(.subheadline)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .textSelection(.enabled)
         }
+        .padding(.vertical, 6)
     }
 }
 
