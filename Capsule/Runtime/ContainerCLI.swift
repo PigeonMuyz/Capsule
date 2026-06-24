@@ -825,6 +825,11 @@ actor ContainerCLI {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
+    /// Execute a command inside a container
+    func executeInContainer(id: String, command: String) async throws -> String {
+        return try await runCommand(["exec", id, "/bin/sh", "-c", command])
+    }
+
     /// Execute a container command and return output
     private func runCommand(_ arguments: [String]) async throws -> String {
         return try await withCheckedThrowingContinuation { continuation in

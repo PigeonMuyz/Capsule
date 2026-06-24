@@ -507,79 +507,77 @@ struct ContainerRow: View {
 
 // MARK: - Container Detail Panel
 
-// MARK: - Apple Container CLI Native + Capsule Enhancement
+// MARK: - SwiftLauncher-style Picker tabs
 
 struct ContainerDetailPanel: View {
     let container: ContainerSummary
     @ObservedObject var viewModel: ContainerViewModel
 
+    @State private var selectedTab: DetailTab = .info
+
+    enum DetailTab: String, CaseIterable, Identifiable {
+        case info = "Info"
+        case logs = "Logs"
+        case terminal = "Terminal"
+        case files = "Files"
+
+        var id: String { rawValue }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack(alignment: .center, spacing: 16) {
-                Text(container.name)
-                    .font(.title2)
-                    .fontWeight(.semibold)
+            // Top toolbar: title + status + picker tabs
+            HStack(spacing: 16) {
+                // Left: Container name and image
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 10) {
+                        Text(container.name)
+                            .font(.title3)
+                            .fontWeight(.semibold)
+
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 8, height: 8)
+                    }
+
+                    Text(container.image)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.leading, 20)
 
                 Spacer()
 
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 8, height: 8)
-
-                    Text(container.status.displayName)
-                        .font(.caption)
+                // Center: Picker-style tabs (SwiftLauncher style)
+                Picker("", selection: $selectedTab) {
+                    ForEach(DetailTab.allCases) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(statusColor.opacity(0.15))
-                .cornerRadius(12)
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 360)
+
+                Spacer()
             }
-            .padding(.horizontal)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+            .padding(.vertical, 12)
+            .background(Color(nsColor: .windowBackgroundColor))
 
             Divider()
 
-            // Native SwiftUI TabView
-            TabView {
-                OverviewTabView(container: container, viewModel: viewModel)
-                    .tabItem {
-                        Label("Overview", systemImage: "info.circle")
-                    }
-                    .tag(0)
-
-                InspectTabView(container: container, runtime: viewModel.runtime)
-                    .tabItem {
-                        Label("Inspect", systemImage: "doc.plaintext")
-                    }
-                    .tag(1)
-
-                LogsTabView(container: container, viewModel: viewModel)
-                    .tabItem {
-                        Label("Logs", systemImage: "doc.text")
-                    }
-                    .tag(2)
-
-                StatsTabView(container: container, runtime: viewModel.runtime)
-                    .tabItem {
-                        Label("Stats", systemImage: "chart.bar")
-                    }
-                    .tag(3)
-
-                TerminalTabView(container: container)
-                    .tabItem {
-                        Label("Terminal", systemImage: "terminal")
-                    }
-                    .tag(4)
-
-                FilesTabView(container: container, runtime: viewModel.runtime)
-                    .tabItem {
-                        Label("Files", systemImage: "folder")
-                    }
-                    .tag(5)
+            // Content area
+            Group {
+                switch selectedTab {
+                case .info:
+                    ContainerInfoView(container: container, viewModel: viewModel)
+                case .logs:
+                    ContainerLogsView(container: container, viewModel: viewModel)
+                case .terminal:
+                    ContainerTerminalView(container: container, viewModel: viewModel)
+                case .files:
+                    ContainerFilesView(container: container, viewModel: viewModel)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -594,9 +592,9 @@ struct ContainerDetailPanel: View {
     }
 }
 
-// MARK: - Overview Tab (Apple Container CLI + Capsule Enhancement)
+// MARK: - Info View (Container overview with controls and settings)
 
-struct OverviewTabView: View {
+struct ContainerInfoView: View {
     let container: ContainerSummary
     @ObservedObject var viewModel: ContainerViewModel
     @State private var restartPolicy: RestartPolicy = .no
@@ -663,7 +661,7 @@ struct OverviewTabView: View {
                 }
 
                 // 🔸 Capsule Enhancement: Restart Policy (Software Daemon)
-                InfoSection(title: "Capsule Enhancement: Restart Policy") {
+                InfoSection(title: "🔸 Capsule: Restart Policy") {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Automatically restart this container using Capsule's restart daemon")
                             .font(.caption)
@@ -696,24 +694,6 @@ struct OverviewTabView: View {
                     saveRestartPolicy(newValue)
                 }
 
-                // 🔸 Capsule Enhancement: Startup (Auto-start with app)
-                InfoSection(title: "Capsule Enhancement: Startup") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Toggle("Start with Capsule", isOn: $autostart)
-                            .toggleStyle(.switch)
-
-                        Text("Automatically start this container when Capsule launches")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .task {
-                    loadAutostart()
-                }
-                .onChange(of: autostart) { _, newValue in
-                    saveAutostart(newValue)
-                }
-
                 Spacer(minLength: 16)
             }
             .padding(20)
@@ -721,49 +701,41 @@ struct OverviewTabView: View {
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    // MARK: - Apple Container CLI Native Actions
+    // MARK: - Actions
 
     private func startContainer() {
-        Task { try? await viewModel.runtime.startContainer(id: container.id) }
+        Task { await viewModel.startContainer(id: container.id) }
     }
 
     private func stopContainer() {
-        Task { try? await viewModel.runtime.stopContainer(id: container.id) }
+        Task { await viewModel.stopContainer(id: container.id) }
     }
 
     private func restartContainer() {
         Task {
-            try? await viewModel.runtime.stopContainer(id: container.id)
+            await viewModel.stopContainer(id: container.id)
             try? await Task.sleep(for: .seconds(1))
-            try? await viewModel.runtime.startContainer(id: container.id)
+            await viewModel.startContainer(id: container.id)
         }
     }
 
     private func deleteContainer() {
-        Task { try? await viewModel.runtime.deleteContainer(id: container.id) }
+        Task { await viewModel.deleteContainer(id: container.id) }
     }
 
-    // MARK: - Capsule Enhancement: Restart Policy
+    // MARK: - Restart Policy
 
     private func loadRestartPolicy() {
-        if let policyString = UserDefaults.standard.string(forKey: "restart_policy_\(container.id)"),
-           let policy = RestartPolicy(rawValue: policyString) {
+        if let data = UserDefaults.standard.data(forKey: "restartPolicy_\(container.id)"),
+           let policy = try? JSONDecoder().decode(RestartPolicy.self, from: data) {
             restartPolicy = policy
         }
     }
 
     private func saveRestartPolicy(_ policy: RestartPolicy) {
-        UserDefaults.standard.set(policy.rawValue, forKey: "restart_policy_\(container.id)")
-    }
-
-    // MARK: - Capsule Enhancement: Autostart
-
-    private func loadAutostart() {
-        autostart = UserDefaults.standard.bool(forKey: "autostart_\(container.id)")
-    }
-
-    private func saveAutostart(_ value: Bool) {
-        UserDefaults.standard.set(value, forKey: "autostart_\(container.id)")
+        if let data = try? JSONEncoder().encode(policy) {
+            UserDefaults.standard.set(data, forKey: "restartPolicy_\(container.id)")
+        }
     }
 
     // MARK: - Helpers
@@ -774,544 +746,279 @@ struct OverviewTabView: View {
         return formatter.string(fromByteCount: Int64(bytes))
     }
 
-    private func formatDate(_ date: Date) -> String {
+    private func formatDate(_ date: Date?) -> String {
+        guard let date = date else { return "—" }
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .full
         return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
 
-// MARK: - Inspect Tab (Apple Container CLI Native: container inspect)
+// MARK: - Logs View
 
-struct InspectTabView: View {
-    let container: ContainerSummary
-    let runtime: RuntimeCore
-    @State private var details: ContainerCLI.ContainerDetails?
-    @State private var isLoading = false
-    @State private var errorMessage: String?
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if isLoading {
-                    HStack {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Loading inspect data...")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                } else if let errorMessage {
-                    InfoSection(title: "Error") {
-                        InfoRow(label: "Message", value: errorMessage)
-                    }
-                } else if let details {
-                    inspectSections(details)
-                }
-
-                Spacer(minLength: 16)
-            }
-            .padding(20)
-        }
-        .background(Color(nsColor: .windowBackgroundColor))
-        .task(id: container.id) {
-            await loadDetails()
-        }
-    }
-
-    @ViewBuilder
-    private func inspectSections(_ details: ContainerCLI.ContainerDetails) -> some View {
-        InfoSection(title: "Command") {
-            InfoRow(label: "Executable", value: details.configuration.initProcess?.executable ?? "--")
-            let arguments = details.configuration.initProcess?.arguments?.joined(separator: " ") ?? ""
-            Divider()
-            InfoRow(label: "Arguments", value: arguments.isEmpty ? "--" : arguments)
-            Divider()
-            InfoRow(label: "Workdir", value: details.configuration.initProcess?.workingDirectory ?? "--")
-        }
-
-        InfoSection(title: "Mounts") {
-            let mounts = details.configuration.mounts
-            if mounts.isEmpty {
-                InfoRow(label: "Mounts", value: "None")
-            } else {
-                ForEach(Array(mounts.enumerated()), id: \.offset) { index, mount in
-                    if index > 0 {
-                        Divider()
-                    }
-                    InfoTwoColumnRow(
-                        leadingLabel: mount.source.isEmpty ? "(runtime)" : mount.source,
-                        trailingLabel: mount.destination
-                    )
-                }
-            }
-        }
-
-        InfoSection(title: "Ports") {
-            let ports = details.configuration.publishedPorts
-            if ports.isEmpty {
-                InfoRow(label: "Ports", value: "None")
-            } else {
-                ForEach(Array(ports.enumerated()), id: \.offset) { index, port in
-                    if index > 0 {
-                        Divider()
-                    }
-                    let proto = port.proto ?? "tcp"
-                    let host = port.hostAddress ?? "0.0.0.0"
-                    let hostPort = port.hostPort.map(String.init) ?? "-"
-                    InfoTwoColumnRow(
-                        leadingLabel: "\(host):\(hostPort)",
-                        trailingLabel: "\(port.containerPort)/\(proto)"
-                    )
-                }
-            }
-        }
-
-        InfoSection(title: "Environment") {
-            let environment = details.configuration.initProcess?.environment ?? []
-            if environment.isEmpty {
-                InfoRow(label: "Environment", value: "None")
-            } else {
-                ForEach(Array(environment.enumerated()), id: \.offset) { index, item in
-                    if index > 0 {
-                        Divider()
-                    }
-                    let pair = splitEnvironment(item)
-                    InfoRow(label: LocalizedStringKey(pair.key), value: pair.value)
-                }
-            }
-        }
-    }
-
-    private func loadDetails() async {
-        isLoading = true
-        errorMessage = nil
-        do {
-            details = try await runtime.inspectContainer(id: container.id)
-        } catch is CancellationError {
-            return
-        } catch {
-            details = nil
-            errorMessage = error.localizedDescription
-        }
-        isLoading = false
-    }
-
-    private func splitEnvironment(_ value: String) -> (key: String, value: String) {
-        guard let index = value.firstIndex(of: "=") else {
-            return (value, "")
-        }
-        return (String(value[..<index]), String(value[value.index(after: index)...]))
-    }
-}
-
-// MARK: - Info Section
-
-struct InfoSection<Content: View>: View {
-    let title: LocalizedStringKey
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-
-            VStack(alignment: .leading, spacing: 0) {
-                content
-            }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-            )
-        }
-    }
-}
-
-// MARK: - Info Row
-
-struct InfoRow: View {
-    let label: LocalizedStringKey
-    let value: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 90, alignment: .leading)
-
-            Text(value)
-                .font(.subheadline)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.vertical, 6)
-    }
-}
-
-struct InfoTwoColumnRow: View {
-    let leadingLabel: String
-    let trailingLabel: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Text(leadingLabel)
-                .font(.subheadline)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .textSelection(.enabled)
-                .foregroundStyle(.secondary)
-
-            Spacer(minLength: 8)
-
-            Image(systemName: "arrow.right")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-
-            Text(trailingLabel)
-                .font(.subheadline)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .textSelection(.enabled)
-        }
-        .padding(.vertical, 6)
-    }
-}
-
-// MARK: - Stats Tab (Apple Container CLI Native: container stats)
-
-struct StatsTabView: View {
-    let container: ContainerSummary
-    let runtime: RuntimeCore
-    @State private var stats: ContainerStats?
-    @State private var isLoading = false
-    @State private var errorMessage: String?
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if isLoading {
-                HStack {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Loading stats...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let errorMessage {
-                VStack(spacing: 12) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.secondary)
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding()
-            } else if let stats {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        InfoSection(title: "CPU") {
-                            InfoRow(label: "Usage", value: String(format: "%.2f%%", stats.cpuPercent))
-                        }
-
-                        InfoSection(title: "Memory") {
-                            InfoRow(label: "Usage", value: formatBytes(stats.memoryUsage))
-                            Divider()
-                            InfoRow(label: "Limit", value: formatBytes(stats.memoryLimit))
-                            Divider()
-                            InfoRow(label: "Percent", value: String(format: "%.2f%%", stats.memoryPercent))
-                        }
-
-                        InfoSection(title: "Network") {
-                            InfoRow(label: "RX", value: formatBytes(stats.networkRx))
-                            Divider()
-                            InfoRow(label: "TX", value: formatBytes(stats.networkTx))
-                        }
-
-                        InfoSection(title: "Block I/O") {
-                            InfoRow(label: "Read", value: formatBytes(stats.blockRead))
-                            Divider()
-                            InfoRow(label: "Write", value: formatBytes(stats.blockWrite))
-                        }
-
-                        Spacer(minLength: 16)
-                    }
-                    .padding(20)
-                }
-                .background(Color(nsColor: .windowBackgroundColor))
-            } else {
-                VStack(spacing: 12) {
-                    Image(systemName: "chart.bar")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.secondary)
-                    Text("Container must be running to view stats")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .task {
-            await loadStats()
-        }
-    }
-
-    private func loadStats() async {
-        guard container.status == .running else {
-            stats = nil
-            return
-        }
-
-        isLoading = true
-        errorMessage = nil
-        do {
-            stats = try await runtime.getContainerStats(id: container.id)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-        isLoading = false
-    }
-
-    private func formatBytes(_ bytes: UInt64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .binary
-        return formatter.string(fromByteCount: Int64(bytes))
-    }
-}
-
-// MARK: - Tab Button (Shared Component for legacy views)
-
-struct TabButton: View {
-    let title: LocalizedStringKey
-    let icon: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.caption)
-                Text(title)
-                    .font(.subheadline)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
-            .foregroundColor(isSelected ? .accentColor : .secondary)
-            .cornerRadius(6)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Logs Tab (Apple Container CLI Native: container logs)
-
-struct LogsTabView: View {
+struct ContainerLogsView: View {
     let container: ContainerSummary
     @ObservedObject var viewModel: ContainerViewModel
-    @State private var logs: [LogCacheStore.Entry] = []
-    @State private var retention = LogRetentionPolicy.defaultPolicy
-    @State private var showSettings = false
+
+    @State private var logs: String = ""
+    @State private var isLoading = false
+    @State private var autoScroll = true
 
     var body: some View {
         VStack(spacing: 0) {
+            // Toolbar
             HStack {
-                Text("\(logs.count) cached lines")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Button(action: { Task { await refreshLogs() } }) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .disabled(isLoading)
 
                 Spacer()
 
-                Button {
-                    showSettings.toggle()
-                } label: {
-                    Image(systemName: "slider.horizontal.3")
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showSettings) {
-                    logSettings
-                        .padding()
-                        .frame(width: 260)
-                }
-
-                Button {
-                    clearLogs()
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .buttonStyle(.plain)
-                .help("Clear cached logs")
+                Toggle("Auto-scroll", isOn: $autoScroll)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
             .background(Color(nsColor: .controlBackgroundColor))
 
             Divider()
 
-            if logs.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 36))
-                        .foregroundStyle(.tertiary)
-                    Text("No cached logs yet")
-                        .foregroundStyle(.secondary)
+            // Logs content
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Text(logs.isEmpty ? "No logs available" : logs)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .id("bottom")
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(logs) { entry in
-                                HStack(alignment: .top, spacing: 10) {
-                                    Text(formatTimestamp(entry.timestamp))
-                                        .font(.system(.caption, design: .monospaced))
-                                        .foregroundStyle(.tertiary)
-                                        .frame(width: 76, alignment: .leading)
-
-                                    Text(entry.content)
-                                        .font(.system(.caption, design: .monospaced))
-                                        .textSelection(.enabled)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 3)
-                                .id(entry.id)
-                            }
-                        }
-                    }
-                    .background(Color(nsColor: .textBackgroundColor))
-                    .onChange(of: logs.count) { _, _ in
-                        if let last = logs.last {
-                            proxy.scrollTo(last.id, anchor: .bottom)
+                .background(Color(nsColor: .textBackgroundColor))
+                .onChange(of: logs) { _, _ in
+                    if autoScroll {
+                        withAnimation {
+                            proxy.scrollTo("bottom", anchor: .bottom)
                         }
                     }
                 }
             }
         }
-        .task(id: container.id) {
-            await loadLogs()
+        .task {
+            await refreshLogs()
         }
     }
 
-    private var logSettings: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Log Retention")
-                .font(.headline)
-
-            Stepper("Days: \(retention.days)", value: $retention.days, in: 1...90)
-            Stepper("Max lines: \(retention.maxEntries)", value: $retention.maxEntries, in: 100...50_000, step: 100)
-
-            Button("Apply") {
-                retention.save(containerID: container.id)
-                showSettings = false
-                Task { await reloadCache() }
-            }
-            .buttonStyle(.borderedProminent)
-        }
-    }
-
-    private func loadLogs() async {
-        retention = LogRetentionPolicy.load(containerID: container.id)
-        await reloadCache()
-
-        if logs.isEmpty, let text = try? await viewModel.runtime.getContainerLogs(id: container.id, tail: retention.maxEntries) {
-            for line in text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) where !line.isEmpty {
-                await appendLog(line)
-            }
-        }
-
-        guard container.status == .running else { return }
+    private func refreshLogs() async {
+        isLoading = true
         do {
-            for try await line in viewModel.runtime.streamContainerLogs(id: container.id) {
-                await appendLog(line)
-            }
+            logs = try await viewModel.runtime.getContainerLogs(id: container.id)
         } catch {
-            // Stream ended or container stopped.
+            logs = "Error loading logs: \(error.localizedDescription)"
         }
-    }
-
-    private func appendLog(_ line: String) async {
-        let entry = LogCacheStore.Entry(content: line)
-        await LogCacheStore.shared.append(entry, for: container.id, retention: retention)
-        logs.append(entry)
-        if logs.count > retention.maxEntries {
-            logs.removeFirst(logs.count - retention.maxEntries)
-        }
-    }
-
-    private func reloadCache() async {
-        logs = await LogCacheStore.shared.entries(for: container.id, retention: retention)
-    }
-
-    private func clearLogs() {
-        Task {
-            await LogCacheStore.shared.clear(containerID: container.id)
-            logs = []
-        }
-    }
-
-    private func formatTimestamp(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss"
-        return formatter.string(from: date)
+        isLoading = false
     }
 }
 
-// MARK: - Terminal Tab
+// MARK: - Terminal View
 
-struct TerminalTabView: View {
+struct ContainerTerminalView: View {
     let container: ContainerSummary
+    @ObservedObject var viewModel: ContainerViewModel
+
+    @State private var output: String = ""
+    @State private var input: String = ""
 
     var body: some View {
-        if container.status == .running {
-            VStack(spacing: 0) {
-                HStack {
-                    Spacer()
-                    Button {
-                        ExternalTerminal.open(command: "/usr/local/bin/container exec -it \(container.id) sh")
-                    } label: {
-                        Label("Open in Terminal", systemImage: "arrow.up.forward.app")
-                    }
-                    .controlSize(.small)
-                }
-                .padding(8)
-
-                ContainerTerminalRepresentable(containerID: container.id)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(spacing: 0) {
+            // Output area
+            ScrollView {
+                Text(output.isEmpty ? "# Terminal ready. Type a command below.\n" : output)
+                    .font(.system(.body, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
             }
-        } else {
-            VStack(spacing: 8) {
-                Image(systemName: "terminal")
-                    .font(.system(size: 40))
-                    .foregroundStyle(.tertiary)
-                Text("Container not running")
+            .background(Color(nsColor: .textBackgroundColor))
+
+            Divider()
+
+            // Input area
+            HStack(spacing: 8) {
+                Image(systemName: "terminal.fill")
+                    .font(.system(size: 12))
                     .foregroundStyle(.secondary)
-                Text("Start the container to open a shell")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+
+                TextField("Type a command...", text: $input)
+                    .textFieldStyle(.plain)
+                    .font(.system(.body, design: .monospaced))
+                    .onSubmit {
+                        executeCommand()
+                    }
+
+                if !input.isEmpty {
+                    Button(action: executeCommand) {
+                        Image(systemName: "return")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.blue)
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color(nsColor: .controlBackgroundColor))
+        }
+    }
+
+    private func executeCommand() {
+        guard !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+        let command = input
+        output += "\n$ \(command)\n"
+        input = ""
+
+        Task {
+            do {
+                let result = try await viewModel.runtime.executeInContainer(id: container.id, command: command)
+                await MainActor.run {
+                    output += result + "\n"
+                }
+            } catch {
+                await MainActor.run {
+                    output += "Error: \(error.localizedDescription)\n"
+                }
+            }
         }
     }
 }
 
-// MARK: - Files Tab
+// MARK: - Files View
 
-struct FilesTabView: View {
+struct ContainerFilesView: View {
     let container: ContainerSummary
-    let runtime: RuntimeCore
+    @ObservedObject var viewModel: ContainerViewModel
+
+    @State private var currentPath: String = "/"
+    @State private var files: [FileItem] = []
+    @State private var isLoading = false
 
     var body: some View {
-        ContainerFilesView(containerID: container.id, containerName: container.name, runtime: runtime)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(spacing: 0) {
+            // Path bar
+            HStack(spacing: 8) {
+                Button(action: goBack) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .disabled(currentPath == "/")
+
+                Text(currentPath)
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Spacer()
+
+                Button(action: { Task { await loadFiles() } }) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color(nsColor: .controlBackgroundColor))
+
+            Divider()
+
+            // File list
+            if isLoading && files.isEmpty {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Table(files) {
+                    TableColumn("Name") { file in
+                        HStack(spacing: 8) {
+                            Image(systemName: file.isDirectory ? "folder.fill" : "doc.fill")
+                                .foregroundStyle(file.isDirectory ? .blue : .secondary)
+                            Text(file.name)
+                                .font(.system(size: 13))
+                        }
+                    }
+                    .width(min: 150, ideal: 300)
+
+                    TableColumn("Size") { file in
+                        Text(file.size)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    .width(min: 80, ideal: 100)
+
+                    TableColumn("Kind") { file in
+                        Text(file.kind)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    .width(min: 80, ideal: 120)
+                }
+            }
+        }
+        .task {
+            await loadFiles()
+        }
+    }
+
+    private func goBack() {
+        guard currentPath != "/" else { return }
+        let components = currentPath.split(separator: "/").dropLast()
+        currentPath = components.isEmpty ? "/" : "/" + components.joined(separator: "/")
+        Task { await loadFiles() }
+    }
+
+    private func loadFiles() async {
+        isLoading = true
+        do {
+            let command = "ls -lAh --time-style=long-iso \(currentPath)"
+            let output = try await viewModel.runtime.executeInContainer(id: container.id, command: command)
+            files = parseFileList(output)
+        } catch {
+            files = []
+        }
+        isLoading = false
+    }
+
+    private func parseFileList(_ output: String) -> [FileItem] {
+        var items: [FileItem] = []
+        for line in output.split(separator: "\n") {
+            let parts = line.split(separator: " ", omittingEmptySubsequences: true)
+            guard parts.count >= 9 else { continue }
+
+            let permissions = String(parts[0])
+            let isDirectory = permissions.hasPrefix("d")
+            let size = String(parts[4])
+            let name = parts[8...].joined(separator: " ")
+
+            items.append(FileItem(
+                name: name,
+                isDirectory: isDirectory,
+                size: size,
+                kind: isDirectory ? "Folder" : "File"
+            ))
+        }
+        return items
     }
 }
+
+struct FileItem: Identifiable {
+    let id = UUID()
+    let name: String
+    let isDirectory: Bool
+    let size: String
+    let kind: String
+}
+

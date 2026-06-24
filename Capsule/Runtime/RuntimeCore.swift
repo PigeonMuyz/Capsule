@@ -255,6 +255,19 @@ actor RuntimeCore {
         return try await cli.getContainerStats(id: id)
     }
 
+    /// Execute a command inside a container
+    /// - Parameters:
+    ///   - id: Container ID
+    ///   - command: Command to execute
+    /// - Returns: Command output
+    func executeInContainer(id: String, command: String) async throws -> String {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        return try await cli.executeInContainer(id: id, command: command)
+    }
+
     /// List files in a running container.
     func listFiles(containerID: String, path: String) async throws -> [ContainerCLI.FileInfo] {
         guard isInitialized else {

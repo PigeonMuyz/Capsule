@@ -59,6 +59,15 @@
     "=" : {
 
     },
+    "🔸 Capsule Enhancement" : {
+
+    },
+    "🔸 Capsule Enhancement: Multi-container project orchestration" : {
+
+    },
+    "🔸 Capsule Enhancement: Parse docker run commands and convert to Container CLI format" : {
+
+    },
     "$" : {
 
     },
@@ -276,7 +285,7 @@
     "Bridge" : {
 
     },
-    "Build manually" : {
+    "Build History" : {
 
     },
     "Cancel" : {
@@ -382,6 +391,9 @@
         }
       }
     },
+    "Click the button below to open an interactive shell in Terminal.app" : {
+
+    },
     "com.example.key=value" : {
 
     },
@@ -407,6 +419,24 @@
           }
         }
       }
+    },
+    "Coming soon: Browse files inside the volume" : {
+
+    },
+    "Coming soon: List all containers connected to this network with IP addresses" : {
+
+    },
+    "Coming soon: List containers using this volume" : {
+
+    },
+    "Coming soon: View image build history and layer commands" : {
+
+    },
+    "Coming soon: View image layer information from container image inspect" : {
+
+    },
+    "Coming soon: View machine startup and runtime logs using container machine logs" : {
+
     },
     "Command" : {
       "localizations" : {
@@ -460,6 +490,12 @@
           }
         }
       }
+    },
+    "Connected Containers" : {
+
+    },
+    "Console" : {
+
     },
     "container" : {
 
@@ -903,6 +939,9 @@
     "Docker" : {
 
     },
+    "Docker Run" : {
+
+    },
     "docker.io/library/nginx:latest" : {
 
     },
@@ -1106,6 +1145,9 @@
     "Health" : {
 
     },
+    "History" : {
+
+    },
     "host" : {
 
     },
@@ -1162,6 +1204,9 @@
         }
       }
     },
+    "Image Layers" : {
+
+    },
     "Image Reference" : {
       "localizations" : {
         "ja" : {
@@ -1212,7 +1257,10 @@
     "Import Docker Run" : {
 
     },
-    "Import services" : {
+    "Import Docker Run Command" : {
+
+    },
+    "Import to Configure" : {
 
     },
     "Info" : {
@@ -1262,10 +1310,13 @@
         }
       }
     },
+    "Interactive Shell" : {
+
+    },
     "Interactive stdin" : {
 
     },
-    "IP" : {
+    "IP Address" : {
 
     },
     "iTerm" : {
@@ -1301,6 +1352,9 @@
           }
         }
       }
+    },
+    "Layers" : {
+
     },
     "Leave empty to use the image default" : {
       "extractionState" : "stale",
@@ -1411,6 +1465,12 @@
           }
         }
       }
+    },
+    "Machine Logs" : {
+
+    },
+    "Machine must be running to access console" : {
+
     },
     "Machines" : {
       "localizations" : {
@@ -1971,6 +2031,9 @@
         }
       }
     },
+    "Open Terminal" : {
+
+    },
     "Override image command" : {
 
     },
@@ -1981,6 +2044,9 @@
 
     },
     "Paste a docker run command (multi-line supported). Capsule will parse it and fill the configuration form." : {
+
+    },
+    "Paste a docker run command below:" : {
 
     },
     "Paste your Docker run command:" : {
@@ -2126,6 +2192,9 @@
     "Project volumes" : {
 
     },
+    "Prune Unused" : {
+
+    },
     "Published Ports" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2221,10 +2290,16 @@
     "Purpose" : {
 
     },
+    "Push" : {
+
+    },
     "Read" : {
 
     },
     "Read-only root filesystem" : {
+
+    },
+    "Referenced By" : {
 
     },
     "Refresh" : {
@@ -2388,6 +2463,9 @@
 
     },
     "Restart" : {
+
+    },
+    "Restart daemon monitors and automatically restarts containers based on policy" : {
 
     },
     "Restart daemon will monitor and restart this container" : {
@@ -2581,9 +2659,6 @@
 
     },
     "Start with Capsule" : {
-
-    },
-    "Start with container runtime" : {
 
     },
     "Start/Stop Container Runtime with Capsule" : {
@@ -3148,6 +3223,9 @@
     "Volume" : {
 
     },
+    "Volume Files" : {
+
+    },
     "Volume Name" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3237,9 +3315,6 @@
           }
         }
       }
-    },
-    "When enabled, this container will start automatically when the container runtime starts." : {
-
     },
     "Workdir" : {
 
