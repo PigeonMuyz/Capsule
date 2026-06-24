@@ -33,7 +33,15 @@ struct VolumesListColumn: View {
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
-        .columnToolbar(title: "Volumes", addHelp: "Create Volume") { showingCreateSheet = true }
+        .navigationTitle("Volumes")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { showingCreateSheet = true }) {
+                    Image(systemName: "plus")
+                }
+                .help("Create Volume")
+            }
+        }
         .sheet(isPresented: $showingCreateSheet) {
             CreateVolumeView(onCreate: { name in Task { await createVolume(name) } })
         }
@@ -139,50 +147,65 @@ struct VolumeRow: View {
     }
 }
 
-// MARK: - Volume Detail Panel
-
-// MARK: - Volume Detail Panel (Apple Container CLI Native)
+// MARK: - Volume Detail Panel (Picker-style tabs)
 
 struct VolumeDetailPanel: View {
     let volume: ContainerCLI.VolumeInfo
 
+    @State private var selectedTab: DetailTab = .overview
+
+    enum DetailTab: String, CaseIterable, Identifiable {
+        case overview = "Overview"
+        case files = "Files"
+
+        var id: String { rawValue }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
+            // Top toolbar: title + picker tabs
+            HStack(spacing: 16) {
+                // Left: Volume name
                 Text(volume.name)
-                    .font(.title2)
+                    .font(.title3)
                     .fontWeight(.semibold)
+                    .padding(.leading, 20)
+
+                Spacer()
+
+                // Center: Picker-style tabs
+                Picker("", selection: $selectedTab) {
+                    ForEach(DetailTab.allCases) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 300)
 
                 Spacer()
             }
-            .padding(.horizontal)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+            .padding(.vertical, 12)
+            .background(Color(nsColor: .windowBackgroundColor))
 
             Divider()
 
-            // Native SwiftUI TabView
-            TabView {
-                VolumeOverviewTab(volume: volume)
-                    .tabItem {
-                        Label("Overview", systemImage: "info.circle")
-                    }
-                    .tag(0)
-
-                VolumeFilesTab(volume: volume)
-                    .tabItem {
-                        Label("Files", systemImage: "folder")
-                    }
-                    .tag(1)
+            // Content area
+            Group {
+                switch selectedTab {
+                case .overview:
+                    VolumeOverviewView(volume: volume)
+                case .files:
+                    VolumeFilesView(volume: volume)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
 
-// MARK: - Overview Tab
+// MARK: - Overview View
 
-struct VolumeOverviewTab: View {
+struct VolumeOverviewView: View {
     let volume: ContainerCLI.VolumeInfo
 
     var body: some View {
@@ -247,9 +270,9 @@ struct VolumeOverviewTab: View {
     }
 }
 
-// MARK: - Files Tab
+// MARK: - Files View
 
-struct VolumeFilesTab: View {
+struct VolumeFilesView: View {
     let volume: ContainerCLI.VolumeInfo
 
     var body: some View {

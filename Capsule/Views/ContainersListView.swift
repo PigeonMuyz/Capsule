@@ -60,8 +60,6 @@ struct ContainersListColumn: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            listHeader
-
             if viewModel.containers.isEmpty && composeManager.projects.isEmpty {
                 emptyState
             } else {
@@ -107,6 +105,16 @@ struct ContainersListColumn: View {
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
+        .navigationTitle("Containers")
+        .navigationSubtitle(statusSubtitle)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { showingAddSheet = true }) {
+                    Image(systemName: "plus")
+                }
+                .help("Add container, import, or compose")
+            }
+        }
         .ignoresSafeArea(.container, edges: .top)
         .sheet(isPresented: $showingAddSheet) {
             AddContainerView(viewModel: viewModel, composeManager: composeManager)
@@ -125,37 +133,6 @@ struct ContainersListColumn: View {
         .padding(.horizontal, 16)
         .padding(.top, 16)
         .padding(.bottom, 8)
-        .background(Color(nsColor: .controlBackgroundColor))
-    }
-
-    private var listHeader: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Containers")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                Text(statusSubtitle)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Button {
-                showingAddSheet = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.title3.weight(.medium))
-                    .frame(width: 34, height: 34)
-            }
-            .buttonStyle(.borderless)
-            .help("Add container, import, or compose")
-        }
-        .padding(.leading, 24)
-        .padding(.trailing, 16)
-        .padding(.top, 42)
-        .padding(.bottom, 14)
         .background(Color(nsColor: .controlBackgroundColor))
     }
 

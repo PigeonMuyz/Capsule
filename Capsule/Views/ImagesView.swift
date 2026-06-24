@@ -33,7 +33,15 @@ struct ImagesListColumn: View {
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
-        .columnToolbar(title: "Images", addHelp: "Pull Image") { showingPullSheet = true }
+        .navigationTitle("Images")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { showingPullSheet = true }) {
+                    Image(systemName: "plus")
+                }
+                .help("Pull Image")
+            }
+        }
         .sheet(isPresented: $showingPullSheet) {
             PullImageView { reference in
                 Task {
@@ -149,63 +157,75 @@ struct ImageRow: View {
     }
 }
 
-// MARK: - Image Detail Panel
-
-// MARK: - Image Detail Panel (Apple Container CLI Native)
+// MARK: - Image Detail Panel (Picker-style tabs)
 
 struct ImageDetailPanel: View {
     let image: ContainerCLI.ImageInfo
     @ObservedObject var viewModel: ContainerViewModel
 
+    @State private var selectedTab: DetailTab = .overview
+
+    enum DetailTab: String, CaseIterable, Identifiable {
+        case overview = "Overview"
+        case layers = "Layers"
+        case history = "History"
+
+        var id: String { rawValue }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
+            // Top toolbar: title + picker tabs
+            HStack(spacing: 16) {
+                // Left: Image name and tag
+                VStack(alignment: .leading, spacing: 2) {
                     Text(image.repository)
-                        .font(.title2)
+                        .font(.title3)
                         .fontWeight(.semibold)
 
                     Text(image.tag)
-                        .font(.subheadline)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                .padding(.leading, 20)
+
+                Spacer()
+
+                // Center: Picker-style tabs
+                Picker("", selection: $selectedTab) {
+                    ForEach(DetailTab.allCases) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 360)
 
                 Spacer()
             }
-            .padding(.horizontal)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+            .padding(.vertical, 12)
+            .background(Color(nsColor: .windowBackgroundColor))
 
             Divider()
 
-            // Native SwiftUI TabView
-            TabView {
-                OverviewTab(image: image, viewModel: viewModel)
-                    .tabItem {
-                        Label("Overview", systemImage: "info.circle")
-                    }
-                    .tag(0)
-
-                LayersTab(image: image)
-                    .tabItem {
-                        Label("Layers", systemImage: "square.stack.3d.down.right")
-                    }
-                    .tag(1)
-
-                HistoryTab(image: image)
-                    .tabItem {
-                        Label("History", systemImage: "clock")
-                    }
-                    .tag(2)
+            // Content area
+            Group {
+                switch selectedTab {
+                case .overview:
+                    ImageOverviewView(image: image, viewModel: viewModel)
+                case .layers:
+                    ImageLayersView(image: image)
+                case .history:
+                    ImageHistoryView(image: image)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
 
-// MARK: - Overview Tab
+// MARK: - Overview View
 
-struct OverviewTab: View {
+struct ImageOverviewView: View {
     let image: ContainerCLI.ImageInfo
     @ObservedObject var viewModel: ContainerViewModel
 
@@ -301,9 +321,9 @@ struct OverviewTab: View {
     }
 }
 
-// MARK: - Layers Tab
+// MARK: - Layers View
 
-struct LayersTab: View {
+struct ImageLayersView: View {
     let image: ContainerCLI.ImageInfo
 
     var body: some View {
@@ -324,9 +344,9 @@ struct LayersTab: View {
     }
 }
 
-// MARK: - History Tab
+// MARK: - History View
 
-struct HistoryTab: View {
+struct ImageHistoryView: View {
     let image: ContainerCLI.ImageInfo
 
     var body: some View {

@@ -33,7 +33,15 @@ struct MachinesListColumn: View {
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
-        .columnToolbar(title: "Machines", addHelp: "Create Machine") { showingCreateSheet = true }
+        .navigationTitle("Machines")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { showingCreateSheet = true }) {
+                    Image(systemName: "plus")
+                }
+                .help("Create Machine")
+            }
+        }
         .sheet(isPresented: $showingCreateSheet) {
             CreateMachineView { name, image, cpus, memory, platform in
                 Task { await createMachine(name: name, image: image, cpus: cpus, memory: memory, platform: platform) }
@@ -154,68 +162,75 @@ struct MachineRow: View {
     }
 }
 
-// MARK: - Machine Detail Panel (Apple Container CLI Native)
+// MARK: - Machine Detail Panel (Picker-style tabs)
 
 struct MachineDetailPanel: View {
     let machine: ContainerCLI.MachineInfo
     @ObservedObject var viewModel: ContainerViewModel
 
+    @State private var selectedTab: DetailTab = .overview
+
+    enum DetailTab: String, CaseIterable, Identifiable {
+        case overview = "Overview"
+        case console = "Console"
+        case logs = "Logs"
+
+        var id: String { rawValue }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack(alignment: .center, spacing: 16) {
-                Text(machine.name)
-                    .font(.title2)
-                    .fontWeight(.semibold)
+            // Top toolbar: title + status + picker tabs
+            HStack(spacing: 16) {
+                // Left: Machine name and status
+                HStack(spacing: 10) {
+                    Text(machine.name)
+                        .font(.title3)
+                        .fontWeight(.semibold)
 
-                Spacer()
-
-                HStack(spacing: 6) {
                     Circle()
                         .fill(machine.isRunning ? Color.green : Color.gray)
                         .frame(width: 8, height: 8)
-
-                    Text(machine.state)
-                        .font(.caption)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background((machine.isRunning ? Color.green : Color.gray).opacity(0.15))
-                .cornerRadius(12)
+                .padding(.leading, 20)
+
+                Spacer()
+
+                // Center: Picker-style tabs
+                Picker("", selection: $selectedTab) {
+                    ForEach(DetailTab.allCases) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 360)
+
+                Spacer()
             }
-            .padding(.horizontal)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+            .padding(.vertical, 12)
+            .background(Color(nsColor: .windowBackgroundColor))
 
             Divider()
 
-            // Native SwiftUI TabView
-            TabView {
-                MachineOverviewTab(machine: machine, viewModel: viewModel)
-                    .tabItem {
-                        Label("Overview", systemImage: "info.circle")
-                    }
-                    .tag(0)
-
-                MachineConsoleTab(machine: machine)
-                    .tabItem {
-                        Label("Console", systemImage: "terminal")
-                    }
-                    .tag(1)
-
-                MachineLogsTab(machine: machine, viewModel: viewModel)
-                    .tabItem {
-                        Label("Logs", systemImage: "doc.text")
-                    }
-                    .tag(2)
+            // Content area
+            Group {
+                switch selectedTab {
+                case .overview:
+                    MachineOverviewView(machine: machine, viewModel: viewModel)
+                case .console:
+                    MachineConsoleView(machine: machine)
+                case .logs:
+                    MachineLogsView(machine: machine, viewModel: viewModel)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
 
-// MARK: - Overview Tab
+// MARK: - Overview View
 
-struct MachineOverviewTab: View {
+struct MachineOverviewView: View {
     let machine: ContainerCLI.MachineInfo
     @ObservedObject var viewModel: ContainerViewModel
 
@@ -307,9 +322,9 @@ struct MachineOverviewTab: View {
     }
 }
 
-// MARK: - Console Tab
+// MARK: - Console View
 
-struct MachineConsoleTab: View {
+struct MachineConsoleView: View {
     let machine: ContainerCLI.MachineInfo
 
     var body: some View {
@@ -349,9 +364,9 @@ struct MachineConsoleTab: View {
     }
 }
 
-// MARK: - Logs Tab
+// MARK: - Logs View
 
-struct MachineLogsTab: View {
+struct MachineLogsView: View {
     let machine: ContainerCLI.MachineInfo
     @ObservedObject var viewModel: ContainerViewModel
 

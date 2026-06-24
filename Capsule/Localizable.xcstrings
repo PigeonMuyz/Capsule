@@ -4,12 +4,6 @@
     "" : {
 
     },
-    "-> %@" : {
-
-    },
-    ".." : {
-
-    },
     "[%@]" : {
 
     },
@@ -41,13 +35,7 @@
     "%lld" : {
 
     },
-    "%lld cached lines" : {
-
-    },
     "%lld containers" : {
-
-    },
-    "%lld items" : {
 
     },
     "%lld services" : {
@@ -66,9 +54,6 @@
 
     },
     "🔸 Capsule Enhancement: Parse docker run commands and convert to Container CLI format" : {
-
-    },
-    "$" : {
 
     },
     "1.1.1.1" : {
@@ -100,6 +85,7 @@
       }
     },
     "Actions" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -239,12 +225,6 @@
     "App cache" : {
 
     },
-    "Apply" : {
-
-    },
-    "Arguments" : {
-
-    },
     "Auto Refresh" : {
       "localizations" : {
         "ja" : {
@@ -277,9 +257,6 @@
 
     },
     "backend" : {
-
-    },
-    "Block I/O" : {
 
     },
     "Bridge" : {
@@ -316,12 +293,6 @@
     "Capsule creates the container first. Use Create & Start when you want the payload to run immediately." : {
 
     },
-    "Capsule Enhancement: Restart Policy" : {
-
-    },
-    "Capsule Enhancement: Startup" : {
-
-    },
     "Changing the language takes effect after restarting Capsule." : {
       "localizations" : {
         "ja" : {
@@ -345,6 +316,7 @@
       }
     },
     "Clear" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -366,10 +338,8 @@
         }
       }
     },
-    "Clear cached logs" : {
-
-    },
     "Clear logs" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -522,9 +492,6 @@
         }
       }
     },
-    "Container Details" : {
-
-    },
     "Container Information" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -548,13 +515,7 @@
         }
       }
     },
-    "Container must be running to view stats" : {
-
-    },
     "Container name" : {
-
-    },
-    "Container not running" : {
 
     },
     "Container Options" : {
@@ -606,15 +567,6 @@
           }
         }
       }
-    },
-    "Controls" : {
-
-    },
-    "Copy Path" : {
-
-    },
-    "CPU" : {
-
     },
     "CPUs" : {
 
@@ -714,6 +666,7 @@
       }
     },
     "Created" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -827,9 +780,6 @@
     "Database data" : {
 
     },
-    "Days: %lld" : {
-
-    },
     "Default" : {
       "localizations" : {
         "ja" : {
@@ -878,6 +828,7 @@
 
     },
     "Details" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -900,6 +851,7 @@
       }
     },
     "Digest" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -946,6 +898,7 @@
 
     },
     "Done" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -992,13 +945,7 @@
     "Drop capabilities" : {
 
     },
-    "Edit in External Editor" : {
-
-    },
     "Enable Rosetta for amd64 images" : {
-
-    },
-    "Enter command..." : {
 
     },
     "Entrypoint" : {
@@ -1033,6 +980,7 @@
 
     },
     "Error" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1053,9 +1001,6 @@
           }
         }
       }
-    },
-    "Executable" : {
-
     },
     "Execution" : {
 
@@ -1179,9 +1124,6 @@
         }
       }
     },
-    "ID" : {
-
-    },
     "Image" : {
       "localizations" : {
         "ja" : {
@@ -1264,6 +1206,7 @@
 
     },
     "Info" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1284,9 +1227,6 @@
           }
         }
       }
-    },
-    "Inspect" : {
-
     },
     "Installed" : {
       "localizations" : {
@@ -1316,13 +1256,13 @@
     "Interactive stdin" : {
 
     },
-    "IP Address" : {
-
-    },
     "iTerm" : {
 
     },
     "KEY" : {
+
+    },
+    "Kind" : {
 
     },
     "Labels" : {
@@ -1382,9 +1322,6 @@
     "Lifecycle" : {
 
     },
-    "Limit" : {
-
-    },
     "Linux" : {
 
     },
@@ -1410,15 +1347,6 @@
         }
       }
     },
-    "Loading inspect data..." : {
-
-    },
-    "Loading stats..." : {
-
-    },
-    "Log Retention" : {
-
-    },
     "Logs" : {
       "localizations" : {
         "ja" : {
@@ -1440,9 +1368,6 @@
           }
         }
       }
-    },
-    "Logs: %@" : {
-
     },
     "Machine" : {
       "localizations" : {
@@ -1494,9 +1419,6 @@
         }
       }
     },
-    "Max lines: %lld" : {
-
-    },
     "Memory" : {
       "localizations" : {
         "ja" : {
@@ -1518,9 +1440,6 @@
           }
         }
       }
-    },
-    "Message" : {
-
     },
     "Mode" : {
       "extractionState" : "stale",
@@ -1545,10 +1464,8 @@
         }
       }
     },
-    "Modified" : {
-
-    },
     "Mount Point" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1691,6 +1608,7 @@
 
     },
     "Networking" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1762,9 +1680,6 @@
     "No" : {
 
     },
-    "No cached logs yet" : {
-
-    },
     "No Containers" : {
       "localizations" : {
         "ja" : {
@@ -1786,9 +1701,6 @@
           }
         }
       }
-    },
-    "No files" : {
-
     },
     "No Images" : {
       "localizations" : {
@@ -2003,12 +1915,6 @@
     "One variable per line (KEY=value)" : {
 
     },
-    "Open" : {
-
-    },
-    "Open in Terminal" : {
-
-    },
     "Open Shell" : {
       "localizations" : {
         "ja" : {
@@ -2096,6 +2002,7 @@
       }
     },
     "Path" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -2116,12 +2023,6 @@
           }
         }
       }
-    },
-    "Percent" : {
-
-    },
-    "Permissions" : {
-
     },
     "Platform" : {
       "localizations" : {
@@ -2293,16 +2194,11 @@
     "Push" : {
 
     },
-    "Read" : {
-
-    },
     "Read-only root filesystem" : {
 
     },
-    "Referenced By" : {
-
-    },
     "Refresh" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -2416,6 +2312,7 @@
       }
     },
     "Repository" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -2474,9 +2371,6 @@
     "Restart Policy" : {
 
     },
-    "Right-click a file for actions" : {
-
-    },
     "Run with init process" : {
 
     },
@@ -2527,9 +2421,6 @@
     "RX" : {
 
     },
-    "Search logs..." : {
-
-    },
     "Select a section" : {
       "localizations" : {
         "ja" : {
@@ -2562,6 +2453,7 @@
 
     },
     "Services" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -2655,9 +2547,6 @@
         }
       }
     },
-    "Start the container to open a shell" : {
-
-    },
     "Start with Capsule" : {
 
     },
@@ -2684,6 +2573,7 @@
       }
     },
     "Started" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -2731,6 +2621,7 @@
 
     },
     "State" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -2758,10 +2649,8 @@
     "Statistics are simulated. Real-time monitoring coming soon." : {
 
     },
-    "Stats" : {
-
-    },
     "Status" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -3008,10 +2897,8 @@
         }
       }
     },
-    "Stopped" : {
-
-    },
     "Subnet" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -3150,10 +3037,8 @@
         }
       }
     },
-    "Timeline" : {
-
-    },
     "Timestamps" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -3181,22 +3066,16 @@
     "TX" : {
 
     },
+    "Type a command..." : {
+
+    },
     "UID" : {
 
     },
     "Ulimits" : {
 
     },
-    "Unable to browse files" : {
-
-    },
     "Unless Stopped" : {
-
-    },
-    "Uptime" : {
-
-    },
-    "Usage" : {
 
     },
     "Use image default" : {
@@ -3215,9 +3094,6 @@
 
     },
     "value" : {
-
-    },
-    "View" : {
 
     },
     "Volume" : {
@@ -3316,13 +3192,7 @@
         }
       }
     },
-    "Workdir" : {
-
-    },
     "Working Directory" : {
-
-    },
-    "Write" : {
 
     }
   },

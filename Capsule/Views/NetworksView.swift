@@ -33,7 +33,15 @@ struct NetworksListColumn: View {
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
-        .columnToolbar(title: "Networks", addHelp: "Create Network") { showingCreateSheet = true }
+        .navigationTitle("Networks")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { showingCreateSheet = true }) {
+                    Image(systemName: "plus")
+                }
+                .help("Create Network")
+            }
+        }
         .sheet(isPresented: $showingCreateSheet) {
             CreateNetworkView(onCreate: { name, driver in Task { await createNetwork(name, driver: driver) } })
         }
@@ -139,50 +147,65 @@ struct NetworkRow: View {
     }
 }
 
-// MARK: - Network Detail Panel
-
-// MARK: - Network Detail Panel (Apple Container CLI Native)
+// MARK: - Network Detail Panel (Picker-style tabs)
 
 struct NetworkDetailPanel: View {
     let network: ContainerCLI.NetworkInfo
 
+    @State private var selectedTab: DetailTab = .overview
+
+    enum DetailTab: String, CaseIterable, Identifiable {
+        case overview = "Overview"
+        case containers = "Containers"
+
+        var id: String { rawValue }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
+            // Top toolbar: title + picker tabs
+            HStack(spacing: 16) {
+                // Left: Network name
                 Text(network.name)
-                    .font(.title2)
+                    .font(.title3)
                     .fontWeight(.semibold)
+                    .padding(.leading, 20)
+
+                Spacer()
+
+                // Center: Picker-style tabs
+                Picker("", selection: $selectedTab) {
+                    ForEach(DetailTab.allCases) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 300)
 
                 Spacer()
             }
-            .padding(.horizontal)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+            .padding(.vertical, 12)
+            .background(Color(nsColor: .windowBackgroundColor))
 
             Divider()
 
-            // Native SwiftUI TabView
-            TabView {
-                NetworkOverviewTab(network: network)
-                    .tabItem {
-                        Label("Overview", systemImage: "info.circle")
-                    }
-                    .tag(0)
-
-                NetworkContainersTab(network: network)
-                    .tabItem {
-                        Label("Containers", systemImage: "cube.box")
-                    }
-                    .tag(1)
+            // Content area
+            Group {
+                switch selectedTab {
+                case .overview:
+                    NetworkOverviewView(network: network)
+                case .containers:
+                    NetworkContainersView(network: network)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
 
-// MARK: - Overview Tab
+// MARK: - Overview View
 
-struct NetworkOverviewTab: View {
+struct NetworkOverviewView: View {
     let network: ContainerCLI.NetworkInfo
 
     var body: some View {
@@ -237,9 +260,9 @@ struct NetworkOverviewTab: View {
     }
 }
 
-// MARK: - Connected Containers Tab
+// MARK: - Connected Containers View
 
-struct NetworkContainersTab: View {
+struct NetworkContainersView: View {
     let network: ContainerCLI.NetworkInfo
 
     var body: some View {
