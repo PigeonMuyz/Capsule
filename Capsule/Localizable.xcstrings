@@ -2538,6 +2538,9 @@
     "Start the container to open a shell" : {
 
     },
+    "Start with container runtime" : {
+
+    },
     "Start/Stop Container Runtime with Capsule" : {
       "localizations" : {
         "ja" : {
@@ -2603,6 +2606,9 @@
           }
         }
       }
+    },
+    "Startup" : {
+
     },
     "State" : {
       "localizations" : {
@@ -3180,6 +3186,9 @@
           }
         }
       }
+    },
+    "When enabled, this container will start automatically when the container runtime starts." : {
+
     },
     "Workdir" : {
 

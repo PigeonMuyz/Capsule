@@ -660,30 +660,20 @@ actor ContainerCLI {
 
     /// A container machine (a full, loginable Linux VM — distinct from a container).
     struct MachineInfo: Codable, Identifiable {
-        let configuration: MachineConfiguration
-        let status: MachineStatus?
-
-        var id: String { configuration.name }
-
-        struct MachineConfiguration: Codable {
-            let name: String
-            let cpus: Int?
-            let memoryInBytes: Int?
-            let creationDate: String?
-        }
-
-        struct MachineStatus: Codable {
-            let state: String?
-            let ipv4Address: String?
-        }
+        let id: String
+        let status: String
+        let `default`: Bool?
+        let cpus: Int
+        let memory: Int
+        let diskSize: Int?
+        let createdDate: String?
 
         // Computed properties for UI
-        var name: String { configuration.name }
-        var state: String { status?.state ?? "unknown" }
-        var ipAddress: String? { status?.ipv4Address }
-        var cpus: Int { configuration.cpus ?? 0 }
-        var memoryBytes: Int { configuration.memoryInBytes ?? 0 }
-        var isRunning: Bool { state.lowercased() == "running" }
+        var name: String { id }
+        var state: String { status }
+        var ipAddress: String? { nil } // Not provided in current CLI output
+        var memoryBytes: Int { memory }
+        var isRunning: Bool { status.lowercased() == "running" }
     }
 
     /// List all container machines.

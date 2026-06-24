@@ -356,6 +356,7 @@ struct RuntimeStatusView: View {
     @ObservedObject var viewModel: ContainerViewModel
     @State private var isStarting = false
     @State private var isHovered = false
+    @State private var runtimeVersion: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -425,6 +426,11 @@ struct RuntimeStatusView: View {
                 }
             }
         }
+        .task(id: viewModel.isRuntimeBootstrapped) {
+            if viewModel.isRuntimeBootstrapped {
+                await loadRuntimeVersion()
+            }
+        }
     }
 
     private var statusColor: Color {
@@ -439,12 +445,10 @@ struct RuntimeStatusView: View {
         Color(nsColor: .controlBackgroundColor)
     }
 
-    private var runtimeVersion: String? {
-        guard viewModel.isRuntimeBootstrapped else { return nil }
-
+    private func loadRuntimeVersion() async {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-c", "/usr/local/bin/container version 2>/dev/null | head -n 1 || echo 'Unknown'"]
+        process.arguments = ["-c", "/usr/local/bin/container version 2>/dev/null | head -n 1 || echo ''"]
 
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -456,13 +460,11 @@ struct RuntimeStatusView: View {
             if let data = try pipe.fileHandleForReading.readToEnd(),
                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                !output.isEmpty {
-                return output
+                runtimeVersion = output
             }
         } catch {
-            return nil
+            runtimeVersion = nil
         }
-
-        return nil
     }
 
     private func startRuntime() {
