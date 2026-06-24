@@ -212,6 +212,9 @@
     "Advanced" : {
 
     },
+    "Advanced settings inherit from service definition" : {
+
+    },
     "After parsing, Capsule fills the Configure form so every field can be reviewed and edited before creation." : {
 
     },
@@ -969,6 +972,9 @@
         }
       }
     },
+    "Environment Variables" : {
+
+    },
     "Error" : {
       "localizations" : {
         "ja" : {
@@ -1079,6 +1085,9 @@
     "Has healthcheck" : {
 
     },
+    "Health" : {
+
+    },
     "host" : {
 
     },
@@ -1180,6 +1189,9 @@
       }
     },
     "Import Compose" : {
+
+    },
+    "Import Docker Run" : {
 
     },
     "Import services" : {
@@ -1536,6 +1548,9 @@
         }
       }
     },
+    "Network & Dependencies" : {
+
+    },
     "Network Configuration" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1584,6 +1599,9 @@
           }
         }
       }
+    },
+    "network1, network2" : {
+
     },
     "Networking" : {
       "localizations" : {
@@ -1883,13 +1901,13 @@
         }
       }
     },
-    "One KEY=value per line" : {
+    "One mapping per line (e.g. 8080:80)" : {
 
     },
-    "One mapping per line" : {
+    "One mount per line (e.g. ./data:/var/lib/data)" : {
 
     },
-    "One mount per line" : {
+    "One variable per line (KEY=value)" : {
 
     },
     "Open" : {
@@ -1920,10 +1938,16 @@
         }
       }
     },
+    "Override image command" : {
+
+    },
     "Parse" : {
 
     },
     "Parse to Configure" : {
+
+    },
+    "Paste a docker run command. Capsule will parse it and fill the configuration form." : {
 
     },
     "Paste Docker Run" : {
@@ -1997,9 +2021,6 @@
         }
       }
     },
-    "Payload" : {
-
-    },
     "Permissions" : {
 
     },
@@ -2070,6 +2091,7 @@
 
     },
     "Published Ports" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -2323,6 +2345,9 @@
         }
       }
     },
+    "Resources are set at project level" : {
+
+    },
     "Restart" : {
 
     },
@@ -2411,6 +2436,9 @@
 
     },
     "Service name" : {
+
+    },
+    "service1, service2" : {
 
     },
     "Services" : {

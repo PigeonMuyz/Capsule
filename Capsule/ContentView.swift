@@ -355,56 +355,75 @@ struct LanguageSettingsView: View {
 struct RuntimeStatusView: View {
     @ObservedObject var viewModel: ContainerViewModel
     @State private var isStarting = false
+    @State private var isHovered = false
 
     var body: some View {
         VStack(spacing: 0) {
-            Divider()
+            HStack(spacing: 0) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(cardBackground)
+                        .shadow(color: .black.opacity(isHovered ? 0.15 : 0.08), radius: isHovered ? 8 : 4, y: isHovered ? 3 : 2)
 
-            VStack(spacing: 8) {
-                HStack(spacing: 10) {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 10, height: 10)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Text("Container Runtime")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.primary)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Container Runtime")
-                            .font(.caption)
-                            .fontWeight(.semibold)
+                            Spacer()
+
+                            Circle()
+                                .fill(statusColor)
+                                .frame(width: 8, height: 8)
+                        }
+
+                        if let version = runtimeVersion {
+                            Text(version)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
 
                         Text(statusText)
-                            .font(.caption2)
+                            .font(.system(size: 11))
                             .foregroundStyle(.secondary)
-                    }
 
-                    Spacer()
-                }
-
-                if !viewModel.isRuntimeBootstrapped {
-                    Button(action: startRuntime) {
-                        HStack(spacing: 6) {
-                            if isStarting {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .scaleEffect(0.7)
-                                Text("Starting...")
-                                    .font(.caption)
-                            } else {
-                                Image(systemName: "play.fill")
-                                    .font(.caption2)
-                                Text("Start Runtime")
-                                    .font(.caption)
+                        if !viewModel.isRuntimeBootstrapped {
+                            Button(action: startRuntime) {
+                                HStack(spacing: 6) {
+                                    if isStarting {
+                                        ProgressView()
+                                            .controlSize(.mini)
+                                            .scaleEffect(0.8)
+                                        Text("Starting...")
+                                            .font(.system(size: 11))
+                                    } else {
+                                        Image(systemName: "play.fill")
+                                            .font(.system(size: 9))
+                                        Text("Start Runtime")
+                                            .font(.system(size: 11))
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 5)
                             }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.mini)
+                            .disabled(isStarting)
+                            .padding(.top, 2)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(isStarting)
+                    .padding(12)
+                }
+                .frame(height: viewModel.isRuntimeBootstrapped ? 72 : 106)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isHovered = hovering
+                    }
                 }
             }
-            .padding(12)
-            .background(cardBackground)
         }
     }
 
@@ -417,7 +436,33 @@ struct RuntimeStatusView: View {
     }
 
     private var cardBackground: Color {
-        viewModel.isRuntimeBootstrapped ? Color.green.opacity(0.05) : Color.orange.opacity(0.08)
+        Color(nsColor: .controlBackgroundColor)
+    }
+
+    private var runtimeVersion: String? {
+        guard viewModel.isRuntimeBootstrapped else { return nil }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        process.arguments = ["-c", "/usr/local/bin/container version 2>/dev/null | head -n 1 || echo 'Unknown'"]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+
+            if let data = try pipe.fileHandleForReading.readToEnd(),
+               let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !output.isEmpty {
+                return output
+            }
+        } catch {
+            return nil
+        }
+
+        return nil
     }
 
     private func startRuntime() {
