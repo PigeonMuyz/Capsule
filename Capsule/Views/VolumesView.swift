@@ -141,11 +141,14 @@ struct VolumeRow: View {
 
 // MARK: - Volume Detail Panel
 
+// MARK: - Volume Detail Panel (Apple Container CLI Native)
+
 struct VolumeDetailPanel: View {
     let volume: ContainerCLI.VolumeInfo
 
     var body: some View {
         VStack(spacing: 0) {
+            // Header
             HStack {
                 Text(volume.name)
                     .font(.title2)
@@ -153,32 +156,117 @@ struct VolumeDetailPanel: View {
 
                 Spacer()
             }
-            .padding()
+            .padding(.horizontal)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    InfoSection(title: "General") {
-                        InfoRow(label: "Name", value: volume.name)
-                        InfoRow(label: "Driver", value: volume.driver)
+            // Native SwiftUI TabView
+            TabView {
+                VolumeOverviewTab(volume: volume)
+                    .tabItem {
+                        Label("Overview", systemImage: "info.circle")
                     }
+                    .tag(0)
 
-                    InfoSection(title: "Mount Point") {
-                        InfoRow(label: "Path", value: volume.mountPoint)
+                VolumeFilesTab(volume: volume)
+                    .tabItem {
+                        Label("Files", systemImage: "folder")
                     }
-
-                    if let created = volume.createdAt {
-                        InfoSection(title: "Timestamps") {
-                            InfoRow(label: "Created", value: created)
-                        }
-                    }
-
-                    Spacer()
-                }
-                .padding()
+                    .tag(1)
             }
         }
+    }
+}
+
+// MARK: - Overview Tab
+
+struct VolumeOverviewTab: View {
+    let volume: ContainerCLI.VolumeInfo
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // Actions
+                InfoSection(title: "Actions") {
+                    HStack(spacing: 12) {
+                        Button(role: .destructive, action: deleteVolume) {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button(action: pruneVolumes) {
+                            Label("Prune Unused", systemImage: "trash.circle")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Spacer()
+                    }
+                }
+
+                // General
+                InfoSection(title: "General") {
+                    InfoRow(label: "Name", value: volume.name)
+                    Divider()
+                    InfoRow(label: "Driver", value: volume.driver)
+                }
+
+                // Mount Point
+                InfoSection(title: "Mount Point") {
+                    InfoRow(label: "Path", value: volume.mountPoint)
+                }
+
+                // Timestamps
+                if let created = volume.createdAt {
+                    InfoSection(title: "Timestamps") {
+                        InfoRow(label: "Created", value: created)
+                    }
+                }
+
+                // Referenced Containers
+                InfoSection(title: "Referenced By") {
+                    Text("Coming soon: List containers using this volume")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 16)
+            }
+            .padding(20)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private func deleteVolume() {
+        // TODO: Implement delete volume
+    }
+
+    private func pruneVolumes() {
+        // TODO: Implement prune volumes
+    }
+}
+
+// MARK: - Files Tab
+
+struct VolumeFilesTab: View {
+    let volume: ContainerCLI.VolumeInfo
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Volume Files")
+                    .font(.headline)
+
+                Text("Coming soon: Browse files inside the volume")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+            }
+            .padding(20)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
