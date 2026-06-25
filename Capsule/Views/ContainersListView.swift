@@ -297,7 +297,7 @@ struct ContainerCard: View {
                 // 状态指示灯
                 Circle()
                     .fill(statusColor)
-                    .frame(width: 8, height: 8)
+                    .frame(width: 10, height: 10)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(container.name)
@@ -305,22 +305,10 @@ struct ContainerCard: View {
                         .fontWeight(.medium)
                         .foregroundColor(.primary)
 
-                    HStack(spacing: 6) {
-                        Text(simplifiedImageName)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-
-                        if let badge = registryBadge {
-                            Text(badge)
-                                .font(.caption2)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(badgeColor.opacity(0.15))
-                                .foregroundStyle(badgeColor)
-                                .cornerRadius(4)
-                        }
-                    }
+                    Text(simplifiedImageName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
 
                 Spacer()
