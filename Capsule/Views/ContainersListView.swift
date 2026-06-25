@@ -110,12 +110,11 @@ struct ContainersListColumn: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(action: { showingAddSheet = true }) {
-                    Image(systemName: "plus")
+                    Label("Add", systemImage: "plus")
                 }
                 .help("Add container, import, or compose")
             }
         }
-        .ignoresSafeArea(.container, edges: .top)
         .sheet(isPresented: $showingAddSheet) {
             AddContainerView(viewModel: viewModel, composeManager: composeManager)
         }
@@ -487,7 +486,7 @@ struct ContainerRow: View {
 // MARK: - SwiftLauncher-style Picker tabs
 
 struct ContainerDetailPanel: View {
-    let container: ContainerSummary
+    let container: ContainerSummary?
     @ObservedObject var viewModel: ContainerViewModel
 
     @State private var selectedTab: DetailTab = .info
@@ -502,47 +501,8 @@ struct ContainerDetailPanel: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Top toolbar: title + status + picker tabs
-            HStack(spacing: 16) {
-                // Left: Container name and image
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 10) {
-                        Text(container.name)
-                            .font(.title3)
-                            .fontWeight(.semibold)
-
-                        Circle()
-                            .fill(statusColor)
-                            .frame(width: 8, height: 8)
-                    }
-
-                    Text(container.image)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.leading, 20)
-
-                Spacer()
-
-                // Center: Picker-style tabs (SwiftLauncher style)
-                Picker("", selection: $selectedTab) {
-                    ForEach(DetailTab.allCases) { tab in
-                        Text(tab.rawValue).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 360)
-
-                Spacer()
-            }
-            .padding(.vertical, 12)
-            .background(Color(nsColor: .windowBackgroundColor))
-
-            Divider()
-
-            // Content area
-            Group {
+        Group {
+            if let container = container {
                 switch selectedTab {
                 case .info:
                     ContainerInfoView(container: container, viewModel: viewModel)
@@ -553,18 +513,23 @@ struct ContainerDetailPanel: View {
                 case .files:
                     ContainerFilesView(container: container, viewModel: viewModel)
                 }
+            } else {
+                NoSelectionView(icon: "cube", message: "Select a container to view details")
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-    }
-
-    private var statusColor: Color {
-        switch container.status {
-        case .running: return .green
-        case .starting: return .orange
-        case .stopped, .created: return .gray
-        case .failed: return .red
-        default: return .secondary
+        .navigationTitle(container?.name ?? "Container")
+        .navigationSubtitle(container?.image ?? "")
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("", selection: $selectedTab) {
+                    ForEach(DetailTab.allCases) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 360)
+                .disabled(container == nil)
+            }
         }
     }
 }

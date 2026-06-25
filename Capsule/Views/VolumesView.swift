@@ -37,7 +37,7 @@ struct VolumesListColumn: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(action: { showingCreateSheet = true }) {
-                    Image(systemName: "plus")
+                    Label("Create", systemImage: "plus")
                 }
                 .help("Create Volume")
             }
@@ -150,7 +150,7 @@ struct VolumeRow: View {
 // MARK: - Volume Detail Panel (Picker-style tabs)
 
 struct VolumeDetailPanel: View {
-    let volume: ContainerCLI.VolumeInfo
+    let volume: ContainerCLI.VolumeInfo?
 
     @State private var selectedTab: DetailTab = .overview
 
@@ -162,18 +162,21 @@ struct VolumeDetailPanel: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Top toolbar: title + picker tabs
-            HStack(spacing: 16) {
-                // Left: Volume name
-                Text(volume.name)
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .padding(.leading, 20)
-
-                Spacer()
-
-                // Center: Picker-style tabs
+        Group {
+            if let volume = volume {
+                switch selectedTab {
+                case .overview:
+                    VolumeOverviewView(volume: volume)
+                case .files:
+                    VolumeFilesView(volume: volume)
+                }
+            } else {
+                NoSelectionView(icon: "externaldrive", message: "Select a volume to view details")
+            }
+        }
+        .navigationTitle(volume?.name ?? "Volume")
+        .toolbar {
+            ToolbarItem(placement: .principal) {
                 Picker("", selection: $selectedTab) {
                     ForEach(DetailTab.allCases) { tab in
                         Text(tab.rawValue).tag(tab)
@@ -181,24 +184,8 @@ struct VolumeDetailPanel: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 300)
-
-                Spacer()
+                .disabled(volume == nil)
             }
-            .padding(.vertical, 12)
-            .background(Color(nsColor: .windowBackgroundColor))
-
-            Divider()
-
-            // Content area
-            Group {
-                switch selectedTab {
-                case .overview:
-                    VolumeOverviewView(volume: volume)
-                case .files:
-                    VolumeFilesView(volume: volume)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }

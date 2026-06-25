@@ -37,7 +37,7 @@ struct MachinesListColumn: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(action: { showingCreateSheet = true }) {
-                    Image(systemName: "plus")
+                    Label("Create", systemImage: "plus")
                 }
                 .help("Create Machine")
             }
@@ -165,7 +165,7 @@ struct MachineRow: View {
 // MARK: - Machine Detail Panel (Picker-style tabs)
 
 struct MachineDetailPanel: View {
-    let machine: ContainerCLI.MachineInfo
+    let machine: ContainerCLI.MachineInfo?
     @ObservedObject var viewModel: ContainerViewModel
 
     @State private var selectedTab: DetailTab = .overview
@@ -179,41 +179,8 @@ struct MachineDetailPanel: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Top toolbar: title + status + picker tabs
-            HStack(spacing: 16) {
-                // Left: Machine name and status
-                HStack(spacing: 10) {
-                    Text(machine.name)
-                        .font(.title3)
-                        .fontWeight(.semibold)
-
-                    Circle()
-                        .fill(machine.isRunning ? Color.green : Color.gray)
-                        .frame(width: 8, height: 8)
-                }
-                .padding(.leading, 20)
-
-                Spacer()
-
-                // Center: Picker-style tabs
-                Picker("", selection: $selectedTab) {
-                    ForEach(DetailTab.allCases) { tab in
-                        Text(tab.rawValue).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 360)
-
-                Spacer()
-            }
-            .padding(.vertical, 12)
-            .background(Color(nsColor: .windowBackgroundColor))
-
-            Divider()
-
-            // Content area
-            Group {
+        Group {
+            if let machine = machine {
                 switch selectedTab {
                 case .overview:
                     MachineOverviewView(machine: machine, viewModel: viewModel)
@@ -222,8 +189,22 @@ struct MachineDetailPanel: View {
                 case .logs:
                     MachineLogsView(machine: machine, viewModel: viewModel)
                 }
+            } else {
+                NoSelectionView(icon: "desktopcomputer", message: "Select a machine to view details")
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .navigationTitle(machine?.name ?? "Machine")
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("", selection: $selectedTab) {
+                    ForEach(DetailTab.allCases) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 360)
+                .disabled(machine == nil)
+            }
         }
     }
 }

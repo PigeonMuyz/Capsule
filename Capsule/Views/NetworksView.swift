@@ -37,7 +37,7 @@ struct NetworksListColumn: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(action: { showingCreateSheet = true }) {
-                    Image(systemName: "plus")
+                    Label("Create", systemImage: "plus")
                 }
                 .help("Create Network")
             }
@@ -150,7 +150,7 @@ struct NetworkRow: View {
 // MARK: - Network Detail Panel (Picker-style tabs)
 
 struct NetworkDetailPanel: View {
-    let network: ContainerCLI.NetworkInfo
+    let network: ContainerCLI.NetworkInfo?
 
     @State private var selectedTab: DetailTab = .overview
 
@@ -162,18 +162,21 @@ struct NetworkDetailPanel: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Top toolbar: title + picker tabs
-            HStack(spacing: 16) {
-                // Left: Network name
-                Text(network.name)
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .padding(.leading, 20)
-
-                Spacer()
-
-                // Center: Picker-style tabs
+        Group {
+            if let network = network {
+                switch selectedTab {
+                case .overview:
+                    NetworkOverviewView(network: network)
+                case .containers:
+                    NetworkContainersView(network: network)
+                }
+            } else {
+                NoSelectionView(icon: "network", message: "Select a network to view details")
+            }
+        }
+        .navigationTitle(network?.name ?? "Network")
+        .toolbar {
+            ToolbarItem(placement: .principal) {
                 Picker("", selection: $selectedTab) {
                     ForEach(DetailTab.allCases) { tab in
                         Text(tab.rawValue).tag(tab)
@@ -181,24 +184,8 @@ struct NetworkDetailPanel: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 300)
-
-                Spacer()
+                .disabled(network == nil)
             }
-            .padding(.vertical, 12)
-            .background(Color(nsColor: .windowBackgroundColor))
-
-            Divider()
-
-            // Content area
-            Group {
-                switch selectedTab {
-                case .overview:
-                    NetworkOverviewView(network: network)
-                case .containers:
-                    NetworkContainersView(network: network)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }

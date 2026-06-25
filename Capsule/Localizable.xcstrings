@@ -464,9 +464,6 @@
     "Connected Containers" : {
 
     },
-    "Console" : {
-
-    },
     "container" : {
 
     },
@@ -1032,6 +1029,7 @@
       }
     },
     "Files" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1088,9 +1086,6 @@
 
     },
     "Health" : {
-
-    },
-    "History" : {
 
     },
     "host" : {
@@ -1293,9 +1288,6 @@
         }
       }
     },
-    "Layers" : {
-
-    },
     "Leave empty to use the image default" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1348,6 +1340,7 @@
       }
     },
     "Logs" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1941,9 +1934,6 @@
 
     },
     "Override image command" : {
-
-    },
-    "Overview" : {
 
     },
     "Parse" : {

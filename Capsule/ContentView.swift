@@ -22,7 +22,6 @@ struct CapsuleApp: App {
                     restartDaemon.start()
                 }
         }
-        .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Container...") {
@@ -86,8 +85,8 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 260, ideal: 340, max: 520)
         } detail: {
             detailColumn
-                .ignoresSafeArea(.container, edges: .top)
         }
+        .navigationSplitViewStyle(.balanced)
     }
 
     // MARK: - Sidebar
@@ -143,25 +142,25 @@ struct ContentView: View {
             if let image = imageSel {
                 ImageDetailPanel(image: image, viewModel: viewModel)
             } else {
-                NoSelectionView(icon: "photo.stack", message: "Select an image to view details")
+                ImageDetailPanel(image: nil, viewModel: viewModel)
             }
         case "volumes":
             if let volume = volumeSel {
                 VolumeDetailPanel(volume: volume)
             } else {
-                NoSelectionView(icon: "externaldrive", message: "Select a volume to view details")
+                VolumeDetailPanel(volume: nil)
             }
         case "networks":
             if let network = networkSel {
                 NetworkDetailPanel(network: network)
             } else {
-                NoSelectionView(icon: "network", message: "Select a network to view details")
+                NetworkDetailPanel(network: nil)
             }
         case "machines":
             if let machine = machineSel {
                 MachineDetailPanel(machine: machine, viewModel: viewModel)
             } else {
-                NoSelectionView(icon: "desktopcomputer", message: "Select a machine to view details")
+                MachineDetailPanel(machine: nil, viewModel: viewModel)
             }
         default:
             NoSelectionView(icon: "cube", message: "No Selection")
@@ -175,7 +174,7 @@ struct ContentView: View {
             if let container = viewModel.containers.first(where: { $0.id == id }) {
                 ContainerDetailPanel(container: container, viewModel: viewModel)
             } else {
-                NoSelectionView(icon: "cube", message: "Select a container to view details")
+                ContainerDetailPanel(container: nil, viewModel: viewModel)
             }
         case .project(let id):
             if let project = composeManager.projects.first(where: { $0.id == id }) {
@@ -184,7 +183,7 @@ struct ContentView: View {
                 NoSelectionView(icon: "cube", message: "Select a container to view details")
             }
         case nil:
-            NoSelectionView(icon: "cube", message: "Select a container to view details")
+            ContainerDetailPanel(container: nil, viewModel: viewModel)
         }
     }
 }

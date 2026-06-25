@@ -37,7 +37,7 @@ struct ImagesListColumn: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(action: { showingPullSheet = true }) {
-                    Image(systemName: "plus")
+                    Label("Pull", systemImage: "plus")
                 }
                 .help("Pull Image")
             }
@@ -160,7 +160,7 @@ struct ImageRow: View {
 // MARK: - Image Detail Panel (Picker-style tabs)
 
 struct ImageDetailPanel: View {
-    let image: ContainerCLI.ImageInfo
+    let image: ContainerCLI.ImageInfo?
     @ObservedObject var viewModel: ContainerViewModel
 
     @State private var selectedTab: DetailTab = .overview
@@ -174,41 +174,8 @@ struct ImageDetailPanel: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Top toolbar: title + picker tabs
-            HStack(spacing: 16) {
-                // Left: Image name and tag
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(image.repository)
-                        .font(.title3)
-                        .fontWeight(.semibold)
-
-                    Text(image.tag)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.leading, 20)
-
-                Spacer()
-
-                // Center: Picker-style tabs
-                Picker("", selection: $selectedTab) {
-                    ForEach(DetailTab.allCases) { tab in
-                        Text(tab.rawValue).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 360)
-
-                Spacer()
-            }
-            .padding(.vertical, 12)
-            .background(Color(nsColor: .windowBackgroundColor))
-
-            Divider()
-
-            // Content area
-            Group {
+        Group {
+            if let image = image {
                 switch selectedTab {
                 case .overview:
                     ImageOverviewView(image: image, viewModel: viewModel)
@@ -217,8 +184,23 @@ struct ImageDetailPanel: View {
                 case .history:
                     ImageHistoryView(image: image)
                 }
+            } else {
+                NoSelectionView(icon: "photo.stack", message: "Select an image to view details")
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .navigationTitle(image?.repository ?? "Image")
+        .navigationSubtitle(image?.tag ?? "")
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("", selection: $selectedTab) {
+                    ForEach(DetailTab.allCases) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 360)
+                .disabled(image == nil)
+            }
         }
     }
 }
