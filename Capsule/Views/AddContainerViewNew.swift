@@ -42,83 +42,69 @@ struct AddContainerViewNew: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header with title
-            HStack {
-                Text("New Container")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-
-            Divider()
-
-            // Tab selector using Picker
-            HStack {
-                Spacer()
-                Picker("", selection: $selectedTab) {
-                    Text("Create Container").tag(0)
-                    Text("Docker Compose").tag(1)
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Tab content
+                Group {
+                    if selectedTab == 0 {
+                        createContainerTab
+                    } else {
+                        dockerComposeTab
+                    }
                 }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 400)
-                Spacer()
-            }
-            .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            Divider()
-
-            // Tab content
-            Group {
-                if selectedTab == 0 {
-                    createContainerTab
-                } else {
-                    dockerComposeTab
+                // Error message
+                if let errorMessage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Color.red.opacity(0.08))
                 }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // Error message
-            if let errorMessage {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                Divider()
+
+                // Bottom buttons
+                HStack {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .keyboardShortcut(.cancelAction)
+
                     Spacer()
+
+                    Button("Create") {
+                        createContainer(startImmediately: false)
+                    }
+                    .disabled(isCreateDisabled)
+
+                    Button("Create & Start") {
+                        createContainer(startImmediately: true)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isCreateDisabled)
                 }
                 .padding()
-                .background(Color.red.opacity(0.08))
             }
-
-            Divider()
-
-            // Bottom buttons
-            HStack {
-                Button("Cancel") {
-                    dismiss()
+            .navigationTitle("New Container")
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Picker("", selection: $selectedTab) {
+                        Text("Create Container").tag(0)
+                        Text("Docker Compose").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 360)
                 }
-                .keyboardShortcut(.cancelAction)
-
-                Spacer()
-
-                Button("Create") {
-                    createContainer(startImmediately: false)
-                }
-                .disabled(isCreateDisabled)
-
-                Button("Create & Start") {
-                    createContainer(startImmediately: true)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isCreateDisabled)
             }
-            .padding()
+            .frame(width: 800, height: 600)
         }
-        .frame(width: 800, height: 600)
     }
 
     // MARK: - Create Container Tab
