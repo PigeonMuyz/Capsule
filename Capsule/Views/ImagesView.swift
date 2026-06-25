@@ -119,15 +119,16 @@ struct ImageRow: View {
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 12) {
-                Image(systemName: ImageDisplayHelper.getImageIcon(displayName))
-                    .foregroundStyle(ImageDisplayHelper.getImageIconColor(displayName))
-
                 VStack(alignment: .leading, spacing: 2) {
+                    Text("\(displayName):\(image.tag)")
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+
                     HStack(spacing: 6) {
-                        Text("\(displayName):\(image.tag)")
-                            .font(.body)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
+                        Text(formatSize(image.size))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
                         if let badge = registryBadge {
                             Text(badge)
@@ -139,10 +140,6 @@ struct ImageRow: View {
                                 .cornerRadius(4)
                         }
                     }
-
-                    Text(formatSize(image.size))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()

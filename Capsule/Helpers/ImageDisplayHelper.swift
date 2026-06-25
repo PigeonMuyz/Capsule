@@ -43,6 +43,11 @@ struct ImageDisplayHelper {
             return "GCR"
         }
 
+        // 本地构建的镜像（没有 registry 前缀）
+        if !repository.contains("/") || (!repository.hasPrefix("docker.io/") && !repository.hasPrefix("ghcr.io/") && !repository.hasPrefix("gcr.io/")) {
+            return "Local"
+        }
+
         return nil
     }
 
@@ -58,6 +63,11 @@ struct ImageDisplayHelper {
 
         if repository.hasPrefix("gcr.io/") {
             return .green
+        }
+
+        // 本地构建的镜像
+        if !repository.contains("/") || (!repository.hasPrefix("docker.io/") && !repository.hasPrefix("ghcr.io/") && !repository.hasPrefix("gcr.io/")) {
+            return .orange
         }
 
         return .gray
