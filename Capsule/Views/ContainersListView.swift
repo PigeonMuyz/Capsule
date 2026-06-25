@@ -301,17 +301,10 @@ struct ContainerCard: View {
                     .frame(width: 10, height: 10)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(container.name)
-                            .font(.body)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
-
-                        // 临时调试：显示状态
-                        Text("[\(container.status.rawValue)]")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                    }
+                    Text(container.name)
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
 
                     Text(simplifiedImageName)
                         .font(.caption)
