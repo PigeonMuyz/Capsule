@@ -119,25 +119,33 @@ struct ImageRow: View {
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 12) {
-                Image(systemName: "photo")
-                    .foregroundStyle(.blue)
+                Image(systemName: ImageDisplayHelper.getImageIcon(displayName))
+                    .foregroundStyle(ImageDisplayHelper.getImageIconColor(displayName))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(image.repository)
-                        .font(.body)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
+                    HStack(spacing: 6) {
+                        Text("\(displayName):\(image.tag)")
+                            .font(.body)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
 
-                    Text(image.tag)
+                        if let badge = registryBadge {
+                            Text(badge)
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(badgeColor.opacity(0.15))
+                                .foregroundStyle(badgeColor)
+                                .cornerRadius(4)
+                        }
+                    }
+
+                    Text(formatSize(image.size))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 Spacer()
-
-                Text(formatSize(image.size))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -148,6 +156,21 @@ struct ImageRow: View {
         .contextMenu {
             Button("Delete", role: .destructive, action: onDelete)
         }
+    }
+
+    // 简化显示名称：使用共享的辅助函数
+    private var displayName: String {
+        ImageDisplayHelper.simplifyRepository(image.repository)
+    }
+
+    // 根据 registry 显示对应的标签
+    private var registryBadge: String? {
+        ImageDisplayHelper.getRegistryBadge(image.repository)
+    }
+
+    // 标签颜色
+    private var badgeColor: Color {
+        ImageDisplayHelper.getBadgeColor(image.repository)
     }
 
     private func formatSize(_ bytes: Int64) -> String {
@@ -188,7 +211,7 @@ struct ImageDetailPanel: View {
                 NoSelectionView(icon: "photo.stack", message: "Select an image to view details")
             }
         }
-        .navigationTitle(image?.repository ?? "Image")
+        .navigationTitle(displayName)
         .navigationSubtitle(image?.tag ?? "")
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -202,6 +225,11 @@ struct ImageDetailPanel: View {
                 .disabled(image == nil)
             }
         }
+    }
+
+    private var displayName: String {
+        guard let repo = image?.repository else { return "Image" }
+        return ImageDisplayHelper.simplifyRepository(repo)
     }
 }
 

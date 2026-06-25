@@ -329,7 +329,7 @@ struct ContainerCard: View {
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
 
-                    Text(container.image)
+                    Text(simplifiedImageName)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -386,6 +386,10 @@ struct ContainerCard: View {
             Divider()
             Button("Remove", role: .destructive, action: onRemove)
         }
+    }
+
+    private var simplifiedImageName: String {
+        ImageDisplayHelper.simplifyRepository(container.image)
     }
 
     private var cardBackground: Color {
