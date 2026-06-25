@@ -68,35 +68,23 @@ struct ContainersListColumn: View {
                         // Running containers section
                         let runningContainers = standaloneContainers.filter { $0.status == .running || $0.status == .starting }
                         if !runningContainers.isEmpty {
-                            Section {
-                                ForEach(runningContainers) { container in
-                                    containerRow(container)
-                                }
-                            } header: {
-                                sectionHeader("Running")
+                            ForEach(runningContainers) { container in
+                                containerRow(container)
                             }
                         }
 
                         // Compose projects section
                         if !composeManager.projects.isEmpty {
-                            Section {
-                                ForEach(composeManager.projects) { project in
-                                    projectGroup(project)
-                                }
-                            } header: {
-                                sectionHeader("Projects")
+                            ForEach(composeManager.projects) { project in
+                                projectGroup(project)
                             }
                         }
 
                         // Stopped containers section
                         let stoppedContainers = standaloneContainers.filter { $0.status != .running && $0.status != .starting }
                         if !stoppedContainers.isEmpty {
-                            Section {
-                                ForEach(stoppedContainers) { container in
-                                    containerRow(container)
-                                }
-                            } header: {
-                                sectionHeader("Stopped")
+                            ForEach(stoppedContainers) { container in
+                                containerRow(container)
                             }
                         }
                     }
@@ -118,21 +106,6 @@ struct ContainersListColumn: View {
         .sheet(isPresented: $showingAddSheet) {
             AddContainerView(viewModel: viewModel, composeManager: composeManager)
         }
-    }
-
-    private func sectionHeader(_ title: String) -> some View {
-        HStack {
-            Text(title)
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 16)
-        .padding(.bottom, 8)
-        .background(Color(nsColor: .controlBackgroundColor))
     }
 
     // MARK: - Compose grouping
