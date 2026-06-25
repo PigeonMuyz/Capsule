@@ -104,7 +104,7 @@ struct ContainersListColumn: View {
             }
         }
         .sheet(isPresented: $showingAddSheet) {
-            AddContainerView(viewModel: viewModel, composeManager: composeManager)
+            AddContainerViewNew(viewModel: viewModel, composeManager: composeManager)
         }
     }
 
