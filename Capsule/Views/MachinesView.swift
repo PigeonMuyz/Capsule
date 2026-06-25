@@ -107,15 +107,18 @@ struct MachineRow: View {
     let isSelected: Bool
     let onSelect: () -> Void
 
-    @State private var isHovered = false
-
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
+                // 状态指示灯
+                Circle()
+                    .fill(machine.isRunning ? Color.green : Color.gray)
+                    .frame(width: 8, height: 8)
+
+                VStack(alignment: .leading, spacing: 2) {
                     Text(machine.name)
                         .font(.body)
-                        .fontWeight(.semibold)
+                        .fontWeight(.medium)
                         .foregroundColor(.primary)
 
                     Text(machine.state)
@@ -124,41 +127,13 @@ struct MachineRow: View {
                 }
 
                 Spacer()
-
-                Circle()
-                    .fill(machine.isRunning ? Color.green : Color.gray)
-                    .frame(width: 8, height: 8)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(cardBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
-            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isHovered = hovering
-            }
-        }
-    }
-
-    private var cardBackground: Color {
-        if isSelected {
-            return Color.accentColor.opacity(0.12)
-        } else if isHovered {
-            return Color(nsColor: .controlBackgroundColor).opacity(0.6)
-        } else {
-            return Color(nsColor: .controlBackgroundColor)
-        }
     }
 }
 

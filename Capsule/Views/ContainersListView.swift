@@ -318,65 +318,47 @@ struct ContainerCard: View {
     let onStop: () -> Void
     let onRemove: () -> Void
 
-    @State private var isHovered = false
-
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
+                // 状态指示灯
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 8, height: 8)
+
+                VStack(alignment: .leading, spacing: 2) {
                     Text(container.name)
                         .font(.body)
-                        .fontWeight(.semibold)
+                        .fontWeight(.medium)
                         .foregroundColor(.primary)
 
-                    Text(simplifiedImageName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(simplifiedImageName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+
+                        if let badge = registryBadge {
+                            Text(badge)
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(badgeColor.opacity(0.15))
+                                .foregroundStyle(badgeColor)
+                                .cornerRadius(4)
+                        }
+                    }
                 }
 
                 Spacer()
-
-                HStack(spacing: 8) {
-                    if container.status == .running {
-                        Button(action: onStop) {
-                            Image(systemName: "stop.fill")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.borderless)
-                        .opacity(isHovered ? 1 : 0)
-                    } else if container.status.canStart {
-                        Button(action: onStart) {
-                            Image(systemName: "play.fill")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.borderless)
-                        .opacity(isHovered ? 1 : 0)
-                    }
-                }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(cardBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
-            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, indented ? 20 : 12)
-        .padding(.vertical, 4)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isHovered = hovering
-            }
-        }
+        .padding(.horizontal, indented ? 20 : 0)
         .contextMenu {
             if container.status == .running {
                 Button("Stop", action: onStop)
@@ -392,23 +374,20 @@ struct ContainerCard: View {
         ImageDisplayHelper.simplifyRepository(container.image)
     }
 
-    private var cardBackground: Color {
-        if isSelected {
-            return Color.accentColor.opacity(0.12)
-        } else if isHovered {
-            return Color(nsColor: .controlBackgroundColor).opacity(0.6)
-        } else {
-            return Color(nsColor: .controlBackgroundColor)
-        }
+    private var registryBadge: String? {
+        ImageDisplayHelper.getRegistryBadge(container.image)
+    }
+
+    private var badgeColor: Color {
+        ImageDisplayHelper.getBadgeColor(container.image)
     }
 
     private var statusColor: Color {
         switch container.status {
         case .running: return .green
         case .starting: return .orange
-        case .stopped, .created: return .gray
         case .failed: return .red
-        default: return .secondary
+        default: return .gray
         }
     }
 }
