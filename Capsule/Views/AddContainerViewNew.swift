@@ -48,8 +48,8 @@ struct AddContainerViewNew: View {
                 HStack {
                     Spacer()
                     Picker("", selection: $selectedTab) {
-                        Text("Create Container").tag(0)
-                        Text("Docker Compose").tag(1)
+                        Text("Create").tag(0)
+                        Text("Compose").tag(1)
                     }
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 360)
