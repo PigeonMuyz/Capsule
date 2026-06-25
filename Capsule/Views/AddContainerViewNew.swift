@@ -55,19 +55,28 @@ struct AddContainerViewNew: View {
 
             Divider()
 
-            // Tab selector
-            TabView(selection: $selectedTab) {
-                createContainerTab
-                    .tabItem {
-                        Label("Create Container", systemImage: "cube")
-                    }
-                    .tag(0)
+            // Tab selector using Picker
+            HStack {
+                Spacer()
+                Picker("", selection: $selectedTab) {
+                    Text("Create Container").tag(0)
+                    Text("Docker Compose").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 400)
+                Spacer()
+            }
+            .padding(.vertical, 12)
 
-                dockerComposeTab
-                    .tabItem {
-                        Label("Docker Compose", systemImage: "square.stack.3d.up")
-                    }
-                    .tag(1)
+            Divider()
+
+            // Tab content
+            Group {
+                if selectedTab == 0 {
+                    createContainerTab
+                } else {
+                    dockerComposeTab
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 

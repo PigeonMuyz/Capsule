@@ -72,6 +72,12 @@
     "64MB" : {
 
     },
+    "80" : {
+
+    },
+    "8080" : {
+
+    },
     "A machine is a full Linux VM you can log into" : {
       "localizations" : {
         "ja" : {
@@ -525,7 +531,13 @@
     "Container name" : {
 
     },
+    "Container name (optional)" : {
+
+    },
     "Container Options" : {
+
+    },
+    "Container path" : {
 
     },
     "Container path (e.g. /data)" : {
@@ -898,7 +910,13 @@
     "Docker" : {
 
     },
+    "Docker Compose" : {
+
+    },
     "Docker Run" : {
+
+    },
+    "docker-compose.yml" : {
 
     },
     "docker.io/library/nginx:latest" : {
@@ -1102,6 +1120,9 @@
 
     },
     "Host" : {
+
+    },
+    "Host path" : {
 
     },
     "Host path or volume" : {
@@ -1655,6 +1676,9 @@
         }
       }
     },
+    "New Container" : {
+
+    },
     "New Container..." : {
       "localizations" : {
         "ja" : {
@@ -1704,6 +1728,9 @@
           }
         }
       }
+    },
+    "No environment variables" : {
+
     },
     "No Images" : {
       "localizations" : {
@@ -1793,6 +1820,9 @@
         }
       }
     },
+    "No port mappings" : {
+
+    },
     "No Selection" : {
       "localizations" : {
         "ja" : {
@@ -1814,6 +1844,9 @@
           }
         }
       }
+    },
+    "No volume mounts" : {
+
     },
     "No Volumes" : {
       "localizations" : {
@@ -1978,6 +2011,9 @@
         }
       }
     },
+    "Paste your docker-compose.yml content above" : {
+
+    },
     "Paste your docker-compose.yml content:" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2062,6 +2098,9 @@
 
     },
     "Project" : {
+
+    },
+    "Project Name" : {
 
     },
     "Project Name:" : {
