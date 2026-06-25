@@ -116,9 +116,25 @@ struct ImageRow: View {
     let onSelect: () -> Void
     let onDelete: () -> Void
 
+    @StateObject private var iconCache = ImageIconCache.shared
+
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 12) {
+                // 镜像图标（从 Docker Hub 获取或使用占位符）
+                Group {
+                    if let icon = iconCache.getIcon(for: image.repository) {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    } else {
+                        Image(systemName: "photo")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(width: 32, height: 32)
+                .cornerRadius(6)
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(displayName):\(image.tag)")
                         .font(.body)
