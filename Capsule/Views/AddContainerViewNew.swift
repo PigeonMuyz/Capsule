@@ -44,6 +44,22 @@ struct AddContainerViewNew: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // Tab selector bar
+                HStack {
+                    Spacer()
+                    Picker("", selection: $selectedTab) {
+                        Text("Create Container").tag(0)
+                        Text("Docker Compose").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 360)
+                    Spacer()
+                }
+                .padding(.vertical, 12)
+                .background(Color(nsColor: .windowBackgroundColor))
+
+                Divider()
+
                 // Tab content
                 Group {
                     if selectedTab == 0 {
@@ -93,16 +109,6 @@ struct AddContainerViewNew: View {
                 .padding()
             }
             .navigationTitle("New Container")
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Picker("", selection: $selectedTab) {
-                        Text("Create Container").tag(0)
-                        Text("Docker Compose").tag(1)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 360)
-                }
-            }
             .frame(width: 800, height: 600)
         }
     }
