@@ -141,24 +141,23 @@ struct ImageRow: View {
                         .fontWeight(.medium)
                         .foregroundColor(.primary)
 
-                    HStack(spacing: 6) {
-                        Text(formatSize(image.size))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        if let badge = registryBadge {
-                            Text(badge)
-                                .font(.caption2)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(badgeColor.opacity(0.15))
-                                .foregroundStyle(badgeColor)
-                                .cornerRadius(4)
-                        }
-                    }
+                    Text(formatSize(image.size))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
+
+                // 来源标签居中显示在最右侧
+                if let badge = registryBadge {
+                    Text(badge)
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(badgeColor.opacity(0.15))
+                        .foregroundStyle(badgeColor)
+                        .cornerRadius(4)
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
