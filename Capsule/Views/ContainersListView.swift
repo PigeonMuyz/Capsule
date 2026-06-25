@@ -223,6 +223,7 @@ struct ContainersListColumn: View {
                 }
             }
         )
+        .id("\(container.id)-\(container.status.rawValue)")
     }
 
     // MARK: - Empty state
@@ -300,10 +301,17 @@ struct ContainerCard: View {
                     .frame(width: 10, height: 10)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(container.name)
-                        .font(.body)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
+                    HStack(spacing: 6) {
+                        Text(container.name)
+                            .font(.body)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+
+                        // 临时调试：显示状态
+                        Text("[\(container.status.rawValue)]")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
 
                     Text(simplifiedImageName)
                         .font(.caption)
@@ -333,14 +341,6 @@ struct ContainerCard: View {
 
     private var simplifiedImageName: String {
         ImageDisplayHelper.simplifyRepository(container.image)
-    }
-
-    private var registryBadge: String? {
-        ImageDisplayHelper.getRegistryBadge(container.image)
-    }
-
-    private var badgeColor: Color {
-        ImageDisplayHelper.getBadgeColor(container.image)
     }
 
     private var statusColor: Color {
