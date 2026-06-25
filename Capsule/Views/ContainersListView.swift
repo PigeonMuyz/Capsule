@@ -358,7 +358,7 @@ struct ContainerCard: View {
     private var statusColor: Color {
         switch container.status {
         case .running: return .green
-        case .starting: return .orange
+        case .starting, .stopping: return .orange
         case .failed: return .red
         default: return .gray
         }
@@ -429,10 +429,9 @@ struct ContainerRow: View {
     private var statusColor: Color {
         switch container.status {
         case .running: return .green
-        case .starting: return .orange
-        case .stopped, .created: return .gray
+        case .starting, .stopping: return .orange
         case .failed: return .red
-        default: return .secondary
+        default: return .gray
         }
     }
 }
