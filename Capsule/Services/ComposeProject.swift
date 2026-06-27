@@ -45,12 +45,21 @@ actor ComposeProject {
         logger.info("Starting compose project: \(self.name)")
 
         // Create networks first
+        let existingNetworks = Set(((try? await runtime.listNetworks()) ?? []).map(\.name))
+        var ensuredNetworks = Set<String>()
         for networkName in networkNames {
+            let networkName = networkName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !networkName.isEmpty, ensuredNetworks.insert(networkName).inserted else { continue }
+            guard !existingNetworks.contains(networkName) else {
+                logger.info("Network already exists: \(networkName)")
+                continue
+            }
             do {
-                try await runtime.createNetwork(name: networkName, driver: "bridge")
+                try await runtime.createNetwork(name: networkName)
                 logger.info("Created network: \(networkName)")
             } catch {
-                logger.warning("Network \(networkName) may already exist: \(error)")
+                logger.error("Failed to create network \(networkName): \(error)")
+                throw error
             }
         }
 
@@ -274,11 +283,14 @@ actor ComposeProject {
         var errorDescription: String? {
             switch self {
             case .serviceStartFailed(let service, let error):
-                return "Failed to start service '\(service)': \(error.localizedDescription)"
+                let format = NSLocalizedString("Failed to start service '%@': %@", comment: "Compose project error with service name and error message")
+                return String(format: format, service, error.localizedDescription)
             case .circularDependency(let service):
-                return "Circular dependency detected involving service '\(service)'"
+                let format = NSLocalizedString("Circular dependency detected involving service '%@'", comment: "Compose project dependency error with service name")
+                return String(format: format, service)
             case .serviceNotFound(let service):
-                return "Service '\(service)' not found"
+                let format = NSLocalizedString("Service '%@' not found", comment: "Compose project error with service name")
+                return String(format: format, service)
             }
         }
     }

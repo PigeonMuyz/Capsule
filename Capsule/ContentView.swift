@@ -22,7 +22,6 @@ struct CapsuleApp: App {
                     restartDaemon.start()
                 }
         }
-        .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Container...") {
@@ -76,6 +75,7 @@ struct ContentView: View {
     @State private var volumeSel: ContainerCLI.VolumeInfo?
     @State private var networkSel: ContainerCLI.NetworkInfo?
     @State private var machineSel: ContainerCLI.MachineInfo?
+    @State private var settingsSel: SettingsSection? = .general
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -86,8 +86,8 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 260, ideal: 340, max: 520)
         } detail: {
             detailColumn
-                .ignoresSafeArea(.container, edges: .top)
         }
+        .navigationSplitViewStyle(.balanced)
     }
 
     // MARK: - Sidebar
@@ -95,15 +95,19 @@ struct ContentView: View {
     private var sidebar: some View {
         VStack(spacing: 0) {
             List(selection: $selectedTab) {
-                Section("Docker") {
-                    Label("Containers", systemImage: "cube.fill").tag("containers")
-                    Label("Images", systemImage: "photo.stack.fill").tag("images")
-                    Label("Volumes", systemImage: "externaldrive.fill").tag("volumes")
-                    Label("Networks", systemImage: "network").tag("networks")
+                Section("Workspace") {
+                    Label("Container", systemImage: "cube.fill").tag("containers")
+                    Label("Machine", systemImage: "desktopcomputer").tag("machines")
                 }
 
-                Section("Linux") {
-                    Label("Machines", systemImage: "desktopcomputer").tag("machines")
+                Section("Resources") {
+                    Label("Images", systemImage: "photo.stack.fill").tag("images")
+                    Label("Networks", systemImage: "network").tag("networks")
+                    Label("Volumes", systemImage: "externaldrive.fill").tag("volumes")
+                }
+
+                Section("Settings") {
+                    Label("Settings", systemImage: "gearshape.fill").tag("settings")
                 }
             }
             .listStyle(.sidebar)
@@ -127,6 +131,8 @@ struct ContentView: View {
             NetworksListColumn(viewModel: viewModel, selection: $networkSel)
         case "machines":
             MachinesListColumn(viewModel: viewModel, selection: $machineSel)
+        case "settings":
+            SettingsListColumn(selection: $settingsSel)
         default:
             Text("Select a section").foregroundStyle(.secondary)
         }
@@ -143,26 +149,28 @@ struct ContentView: View {
             if let image = imageSel {
                 ImageDetailPanel(image: image, viewModel: viewModel)
             } else {
-                NoSelectionView(icon: "photo.stack", message: "Select an image to view details")
+                ImageDetailPanel(image: nil, viewModel: viewModel)
             }
         case "volumes":
             if let volume = volumeSel {
-                VolumeDetailPanel(volume: volume)
+                VolumeDetailPanel(volume: volume, viewModel: viewModel)
             } else {
-                NoSelectionView(icon: "externaldrive", message: "Select a volume to view details")
+                VolumeDetailPanel(volume: nil, viewModel: viewModel)
             }
         case "networks":
             if let network = networkSel {
-                NetworkDetailPanel(network: network)
+                NetworkDetailPanel(network: network, viewModel: viewModel)
             } else {
-                NoSelectionView(icon: "network", message: "Select a network to view details")
+                NetworkDetailPanel(network: nil, viewModel: viewModel)
             }
         case "machines":
             if let machine = machineSel {
                 MachineDetailPanel(machine: machine, viewModel: viewModel)
             } else {
-                NoSelectionView(icon: "desktopcomputer", message: "Select a machine to view details")
+                MachineDetailPanel(machine: nil, viewModel: viewModel)
             }
+        case "settings":
+            SettingsDetailPanel(section: settingsSel ?? .general, viewModel: viewModel)
         default:
             NoSelectionView(icon: "cube", message: "No Selection")
         }
@@ -175,7 +183,7 @@ struct ContentView: View {
             if let container = viewModel.containers.first(where: { $0.id == id }) {
                 ContainerDetailPanel(container: container, viewModel: viewModel)
             } else {
-                NoSelectionView(icon: "cube", message: "Select a container to view details")
+                ContainerDetailPanel(container: nil, viewModel: viewModel)
             }
         case .project(let id):
             if let project = composeManager.projects.first(where: { $0.id == id }) {
@@ -184,7 +192,7 @@ struct ContentView: View {
                 NoSelectionView(icon: "cube", message: "Select a container to view details")
             }
         case nil:
-            NoSelectionView(icon: "cube", message: "Select a container to view details")
+            ContainerDetailPanel(container: nil, viewModel: viewModel)
         }
     }
 }
@@ -192,7 +200,7 @@ struct ContentView: View {
 // MARK: - No Selection placeholder
 struct NoSelectionView: View {
     var icon: String = "cube"
-    var message: String = "No Selection"
+    var message: LocalizedStringKey = "No Selection"
 
     var body: some View {
         VStack(spacing: 16) {
@@ -215,21 +223,96 @@ struct NoSelectionView: View {
 
 // MARK: - Settings (native ⌘, window)
 
+enum SettingsSection: String, CaseIterable, Identifiable {
+    case general
+    case system
+    case language
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .general: return "General"
+        case .system: return "System"
+        case .language: return "Language"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .general: return "gearshape"
+        case .system: return "cpu"
+        case .language: return "globe"
+        }
+    }
+}
+
 struct SettingsView: View {
+    @ObservedObject var viewModel: ContainerViewModel
+    @State private var selection: SettingsSection? = .general
+
+    var body: some View {
+        NavigationSplitView {
+            SettingsListColumn(selection: $selection)
+                .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 260)
+        } detail: {
+            SettingsDetailPanel(section: selection ?? .general, viewModel: viewModel)
+        }
+        .frame(width: 760, height: 460)
+    }
+}
+
+struct SettingsListColumn: View {
+    @Binding var selection: SettingsSection?
+
+    var body: some View {
+        List {
+            Section("Settings") {
+                ForEach(SettingsSection.allCases) { section in
+                    Button {
+                        selection = section
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: section.icon)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(selection == section ? Color.accentColor : Color.secondary)
+                                .frame(width: 18)
+
+                            Text(section.title)
+                                .foregroundStyle(.primary)
+
+                            Spacer()
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(selection == section ? Color.accentColor.opacity(0.14) : Color.clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .listStyle(.sidebar)
+        .navigationTitle("Settings")
+    }
+}
+
+struct SettingsDetailPanel: View {
+    let section: SettingsSection
     @ObservedObject var viewModel: ContainerViewModel
 
     var body: some View {
-        TabView {
-            GeneralSettingsView()
-                .tabItem { Label("General", systemImage: "gearshape") }
-
-            SystemSettingsView()
-                .tabItem { Label("System", systemImage: "cpu") }
-
-            LanguageSettingsView()
-                .tabItem { Label("Language", systemImage: "globe") }
+        Group {
+            switch section {
+            case .general:
+                GeneralSettingsView()
+            case .system:
+                SystemSettingsView()
+            case .language:
+                LanguageSettingsView()
+            }
         }
-        .frame(width: 520, height: 360)
+        .navigationTitle(section.title)
     }
 }
 
@@ -283,6 +366,18 @@ struct GeneralSettingsView: View {
 struct SystemSettingsView: View {
     var body: some View {
         Form {
+            Section {
+                LabeledContent("Runtime Engine") {
+                    Text("Container CLI")
+                        .foregroundStyle(.secondary)
+                }
+                Text("Containerization.framework runtime is reserved for a future non-CLI backend.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("Runtime")
+            }
+
             Section {
                 HStack {
                     Text("Container CLI")
@@ -356,6 +451,7 @@ struct RuntimeStatusView: View {
     @ObservedObject var viewModel: ContainerViewModel
     @State private var isStarting = false
     @State private var isHovered = false
+    @State private var runtimeVersion: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -425,6 +521,11 @@ struct RuntimeStatusView: View {
                 }
             }
         }
+        .task(id: viewModel.isRuntimeBootstrapped) {
+            if viewModel.isRuntimeBootstrapped {
+                await loadRuntimeVersion()
+            }
+        }
     }
 
     private var statusColor: Color {
@@ -439,12 +540,10 @@ struct RuntimeStatusView: View {
         Color(nsColor: .controlBackgroundColor)
     }
 
-    private var runtimeVersion: String? {
-        guard viewModel.isRuntimeBootstrapped else { return nil }
-
+    private func loadRuntimeVersion() async {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-c", "/usr/local/bin/container version 2>/dev/null | head -n 1 || echo 'Unknown'"]
+        process.arguments = ["-c", "/usr/local/bin/container version 2>/dev/null | head -n 1 || echo ''"]
 
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -456,13 +555,11 @@ struct RuntimeStatusView: View {
             if let data = try pipe.fileHandleForReading.readToEnd(),
                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                !output.isEmpty {
-                return output
+                runtimeVersion = output
             }
         } catch {
-            return nil
+            runtimeVersion = nil
         }
-
-        return nil
     }
 
     private func startRuntime() {

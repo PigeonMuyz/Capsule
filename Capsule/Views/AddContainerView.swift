@@ -1,43 +1,16 @@
 import SwiftUI
 import AppKit
 
-/// Unified "Add" sheet for containers: a single entry point that merges the
-/// form-based creation and the Docker import flows into one segmented sheet.
+/// Unified "Add" sheet for containers using native TabView.
 ///
-/// Modes:
-///   - Configure:  fill in image / resources / env / ports / network
-///   - Docker Run: paste a `docker run …` command
-///   - Compose:    paste a docker-compose.yml + project name
+/// Tabs:
+///   - Configure:  Manual configuration (Apple Container CLI native + Capsule enhancements)
+///   - Docker Run: Import from docker run command (Capsule enhancement)
+///   - Compose:    Import from docker-compose.yml (Capsule enhancement)
 struct AddContainerView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var viewModel: ContainerViewModel
     @ObservedObject var composeManager: ComposeManager
-
-    enum Mode: Int, CaseIterable, Identifiable {
-        case configure, dockerRun, compose
-        var id: Int { rawValue }
-        var title: String {
-            switch self {
-            case .configure: return NSLocalizedString("Configure", comment: "")
-            case .dockerRun: return NSLocalizedString("Docker Run", comment: "")
-            case .compose: return NSLocalizedString("Compose", comment: "")
-            }
-        }
-        var subtitle: String {
-            switch self {
-            case .configure: return NSLocalizedString("Build manually", comment: "")
-            case .dockerRun: return NSLocalizedString("Convert a command", comment: "")
-            case .compose: return NSLocalizedString("Import services", comment: "")
-            }
-        }
-        var icon: String {
-            switch self {
-            case .configure: return "slider.horizontal.3"
-            case .dockerRun: return "terminal"
-            case .compose: return "square.stack.3d.up"
-            }
-        }
-    }
 
     /// One environment variable row.
     struct EnvVar: Identifiable { let id = UUID(); var key = ""; var value = "" }
@@ -73,7 +46,7 @@ struct AddContainerView: View {
             networkText = service.networks.joined(separator: ", ")
             restartPolicy = service.restartPolicy ?? RestartPolicy.no.rawValue
             healthcheck = service.healthcheck
-            commandText = service.command.joined(separator: " ")
+            commandText = ShellCommandTokenizer.join(service.command)
         }
 
         func service() -> ComposeProject.ComposeService {
@@ -96,7 +69,7 @@ struct AddContainerView: View {
                 healthcheck: healthcheck,
                 cpus: 2,
                 memoryGB: 2,
-                command: commandText.trimmed.isEmpty ? [] : commandText.split(separator: " ").map(String.init)
+                command: ShellCommandTokenizer.split(commandText.trimmed)
             )
         }
     }
@@ -132,7 +105,6 @@ struct AddContainerView: View {
         }
     }
 
-    @State private var mode: Mode = .configure
     @State private var configSection: ConfigSection = .general
 
     // Configure fields
@@ -151,6 +123,7 @@ struct AddContainerView: View {
     @State private var networkChoice = ""    // empty → default network
     @State private var availableNetworks: [ContainerCLI.NetworkInfo] = []
     @State private var restartPolicy: RestartPolicy = .no
+    @State private var autostart = false
     @State private var removeAfterStop = false
     @State private var readOnlyRootfs = false
     @State private var useInit = false
@@ -196,21 +169,37 @@ struct AddContainerView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                modeSwitcher
-                    .padding(.horizontal, 18)
-                    .padding(.top, 14)
+                // Header
+                Text("Add Container")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
                     .padding(.bottom, 12)
 
                 Divider()
 
-                Group {
-                    switch mode {
-                    case .configure: configureForm
-                    case .dockerRun:  dockerRunForm
-                    case .compose:    composeForm
-                    }
+                // Native TabView
+                TabView {
+                    configureTab
+                        .tabItem {
+                            Label("Configure", systemImage: "slider.horizontal.3")
+                        }
+                        .tag(0)
+
+                    dockerRunTab
+                        .tabItem {
+                            Label("Docker Run", systemImage: "terminal")
+                        }
+                        .tag(1)
+
+                    composeTab
+                        .tabItem {
+                            Label("Compose", systemImage: "square.stack.3d.up")
+                        }
+                        .tag(2)
                 }
-                .frame(maxHeight: .infinity)
 
                 if let errorMessage {
                     HStack(spacing: 8) {
@@ -225,7 +214,6 @@ struct AddContainerView: View {
                     .background(Color.red.opacity(0.08))
                 }
             }
-            .navigationTitle("Add Container")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -238,48 +226,79 @@ struct AddContainerView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create & Start") { submit(startAfterCreate: true) }
                         .buttonStyle(.borderedProminent)
-                        .disabled(isSubmitDisabled || isWorking || mode == .compose)
+                        .disabled(isSubmitDisabled || isWorking)
                 }
             }
             .frame(width: 920, height: 680)
         }
     }
 
-    private var modeSwitcher: some View {
-        HStack(spacing: 10) {
-            ForEach(Mode.allCases) { item in
-                Button {
-                    mode = item
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: item.icon)
-                            .font(.title3)
-                            .frame(width: 24)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.title)
-                                .font(.headline)
-                            Text(item.subtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity)
-                    .background(mode == item ? Color.accentColor.opacity(0.18) : Color(nsColor: .controlBackgroundColor))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(mode == item ? Color.accentColor.opacity(0.55) : Color.secondary.opacity(0.12), lineWidth: 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-                .buttonStyle(.plain)
-            }
-        }
+    // MARK: - Configure Tab (Apple Container CLI Native + Capsule Enhancement)
+
+    private var configureTab: some View {
+        configureForm
     }
 
-    // MARK: - Configure
+    // MARK: - Docker Run Tab (Capsule Enhancement)
+
+    private var dockerRunTab: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Import Docker Run Command")
+                    .font(.headline)
+
+                Text("🔸 Capsule Enhancement: Parse docker run commands and convert to Container CLI format")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(8)
+
+                Text("Paste a docker run command below:")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                TextEditor(text: $dockerCommand)
+                    .font(.system(.body, design: .monospaced))
+                    .frame(minHeight: 200)
+                    .border(Color.secondary.opacity(0.3))
+                    .cornerRadius(6)
+
+                if let dockerParseError {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                        Text(dockerParseError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(6)
+                }
+
+                Button(action: parseDockerRunIntoConfigure) {
+                    Label("Import to Configure", systemImage: "arrow.right.circle.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(dockerCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding(20)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Compose Tab (Capsule Enhancement)
+
+    private var composeTab: some View {
+        composeForm
+    }
+
+    // MARK: - Configure Form
 
     private var configureForm: some View {
         HSplitView {
@@ -441,7 +460,22 @@ struct AddContainerView: View {
 
     private var lifecycleSection: some View {
         Group {
+            // 🔸 Capsule Enhancement: Restart Policy
             Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("🔸 Capsule Enhancement")
+                        .font(.caption)
+                        .foregroundStyle(.blue)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(4)
+
+                    Text("Restart daemon monitors and automatically restarts containers based on policy")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Picker("Restart", selection: $restartPolicy) {
                     ForEach(RestartPolicy.allCases) { policy in
                         Text(policy.displayName).tag(policy)
@@ -451,6 +485,28 @@ struct AddContainerView: View {
                 Text("Restart Policy")
             }
 
+            // 🔸 Capsule Enhancement: Startup
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("🔸 Capsule Enhancement")
+                        .font(.caption)
+                        .foregroundStyle(.blue)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(4)
+
+                    Text("Automatically start this container when Capsule launches")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Toggle("Start with Capsule", isOn: $autostart)
+            } header: {
+                Text("Startup")
+            }
+
+            // Apple Container CLI Native Options
             Section {
                 Toggle("Remove after stop", isOn: $removeAfterStop)
                 Toggle("Run with init process", isOn: $useInit)
@@ -529,7 +585,7 @@ struct AddContainerView: View {
         }
     }
 
-    // MARK: - Docker Run
+    // MARK: - Docker Run Import
 
     private var dockerRunImportSheet: some View {
         NavigationStack {
@@ -538,7 +594,7 @@ struct AddContainerView: View {
                     .font(.system(.body, design: .monospaced))
                     .scrollContentBackground(.hidden)
                     .padding(8)
-                    .frame(height: 180)
+                    .frame(height: 240)
                     .background(Color(nsColor: .textBackgroundColor))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
 
@@ -548,7 +604,7 @@ struct AddContainerView: View {
                         .foregroundStyle(.red)
                 }
 
-                Text("Paste a docker run command. Capsule will parse it and fill the configuration form.")
+                Text("Paste a docker run command (multi-line supported). Capsule will parse it and fill the configuration form.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -571,44 +627,8 @@ struct AddContainerView: View {
                     .disabled(dockerCommand.trimmed.isEmpty)
                 }
             }
-            .frame(width: 580, height: 380)
+            .frame(width: 620, height: 460)
         }
-    }
-
-    private var dockerRunForm: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Label("Paste Docker Run", systemImage: "terminal")
-                    .font(.headline)
-                Spacer()
-                Button("Parse to Configure") {
-                    parseDockerRunIntoConfigure()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(dockerCommand.trimmed.isEmpty)
-            }
-
-            TextEditor(text: $dockerCommand)
-                .font(.system(.body, design: .monospaced))
-                .scrollContentBackground(.hidden)
-                .padding(8)
-                .frame(height: 150)
-                .background(Color(nsColor: .textBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            if let dockerParseError {
-                Label(dockerParseError, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-
-            Text("After parsing, Capsule fills the Configure form so every field can be reviewed and edited before creation.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Spacer()
-        }
-        .padding()
     }
 
     private func parseDockerRunIntoConfigure() {
@@ -616,7 +636,6 @@ struct AddContainerView: View {
             let spec = try DockerCommandParser.parseDockerRun(dockerCommand)
             apply(spec: spec)
             dockerParseError = nil
-            mode = .configure
         } catch {
             dockerParseError = error.localizedDescription
         }
@@ -676,6 +695,16 @@ struct AddContainerView: View {
     private var composeForm: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
+                // 🔸 Capsule Enhancement Label
+                Text("🔸 Capsule Enhancement: Multi-container project orchestration")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(8)
+
                 HStack {
                     Label("Import Compose", systemImage: "square.stack.3d.up")
                         .font(.headline)
@@ -939,14 +968,13 @@ struct AddContainerView: View {
     // MARK: - Validation & submit
 
     private var isSubmitDisabled: Bool {
-        switch mode {
-        case .configure:
-            return image.trimmed.isEmpty
-        case .dockerRun:
-            return true
-        case .compose:
-            return projectName.trimmed.isEmpty || composeServices.isEmpty
-        }
+        // Configure tab: image is required
+        let configureValid = !image.trimmed.isEmpty
+        // Compose tab: project name and services are required
+        let composeValid = !projectName.trimmed.isEmpty && !composeServices.isEmpty
+
+        // At least one tab should have valid data
+        return !configureValid && !composeValid
     }
 
     private var mountsSection: some View {
@@ -1169,8 +1197,17 @@ struct AddContainerView: View {
 
         Task {
             do {
-                switch mode {
-                case .configure:
+                // Determine submission type based on filled data
+                if !composeServices.isEmpty && !projectName.trimmed.isEmpty {
+                    // Compose project
+                    _ = try await composeManager.createProject(
+                        name: projectName.trimmed,
+                        services: composeServices.map { $0.service() },
+                        volumes: composeVolumesText.commaSeparated,
+                        networks: composeNetworksText.commaSeparated
+                    )
+                } else if !image.trimmed.isEmpty {
+                    // Single container configuration
                     var spec = ContainerSpec(
                         name: resolvedName,
                         image: image.trimmed,
@@ -1214,6 +1251,7 @@ struct AddContainerView: View {
                     spec.readOnlyRootfs = readOnlyRootfs
                     spec.useInit = useInit
                     spec.restartPolicy = restartPolicy
+                    spec.autostart = autostart
                     if startAfterCreate {
                         let summary = try await viewModel.runtime.createContainer(spec)
                         try await viewModel.runtime.startContainer(id: summary.id)
@@ -1221,19 +1259,6 @@ struct AddContainerView: View {
                     } else {
                         await viewModel.createContainer(spec: spec)
                     }
-
-                case .dockerRun:
-                    parseDockerRunIntoConfigure()
-                    isWorking = false
-                    return
-
-                case .compose:
-                    _ = try await composeManager.createProject(
-                        name: projectName.trimmed,
-                        services: composeServices.map { $0.service() },
-                        volumes: composeVolumesText.commaSeparated,
-                        networks: composeNetworksText.commaSeparated
-                    )
                 }
                 dismiss()
             } catch {
@@ -1248,7 +1273,7 @@ struct AddContainerView: View {
     private func parseCommand(_ command: String) -> [String] {
         let trimmed = command.trimmed
         guard !trimmed.isEmpty else { return [] }
-        return trimmed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        return ShellCommandTokenizer.split(trimmed)
     }
 
     /// Build a `--publish` spec ("host:container") from a row, skipping incomplete rows.

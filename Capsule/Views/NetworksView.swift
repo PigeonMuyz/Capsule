@@ -33,7 +33,15 @@ struct NetworksListColumn: View {
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
-        .columnToolbar(title: "Networks", addHelp: "Create Network") { showingCreateSheet = true }
+        .navigationTitle("Networks")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { showingCreateSheet = true }) {
+                    Label("Create", systemImage: "plus")
+                }
+                .help("Create Network")
+            }
+        }
         .sheet(isPresented: $showingCreateSheet) {
             CreateNetworkView(onCreate: { name, driver in Task { await createNetwork(name, driver: driver) } })
         }
@@ -139,42 +147,261 @@ struct NetworkRow: View {
     }
 }
 
-// MARK: - Network Detail Panel
+// MARK: - Network Detail Panel (Picker-style tabs)
 
 struct NetworkDetailPanel: View {
+    let network: ContainerCLI.NetworkInfo?
+    @ObservedObject var viewModel: ContainerViewModel
+
+    @State private var selectedTab: DetailTab = .overview
+
+    enum DetailTab: String, CaseIterable, Identifiable {
+        case overview = "Overview"
+        case containers = "Containers"
+
+        var id: String { rawValue }
+
+        var title: LocalizedStringKey {
+            switch self {
+            case .overview: return "Overview"
+            case .containers: return "Containers"
+            }
+        }
+    }
+
+    var body: some View {
+        Group {
+            if let network = network {
+                switch selectedTab {
+                case .overview:
+                    NetworkOverviewView(network: network, viewModel: viewModel)
+                case .containers:
+                    NetworkContainersView(network: network, viewModel: viewModel)
+                }
+            } else {
+                NoSelectionView(icon: "network", message: "Select a network to view details")
+            }
+        }
+        .navigationTitle(network?.name ?? "Network")
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("", selection: $selectedTab) {
+                    ForEach(DetailTab.allCases) { tab in
+                        Text(tab.title).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 300)
+                .disabled(network == nil)
+            }
+        }
+    }
+}
+
+// MARK: - Overview View
+
+struct NetworkOverviewView: View {
     let network: ContainerCLI.NetworkInfo
+    @ObservedObject var viewModel: ContainerViewModel
+    @State private var isWorking = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                if let errorMessage {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+
+                // Actions
+                InfoSection(title: "Actions") {
+                    HStack(spacing: 12) {
+                        Button(role: .destructive, action: deleteNetwork) {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isWorking)
+
+                        Button(action: pruneNetworks) {
+                            Label("Prune Unused", systemImage: "trash.circle")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isWorking)
+
+                        Spacer()
+
+                        if isWorking {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    }
+                }
+
+                // General
+                InfoSection(title: "General") {
+                    InfoRow(label: "Name", value: network.name)
+                    Divider()
+                    InfoRow(label: "Driver", value: network.driver)
+                    Divider()
+                    InfoRow(label: "ID", value: String(network.id.prefix(12)))
+                }
+
+                // Networking
+                if let subnet = network.subnet {
+                    InfoSection(title: "Networking") {
+                        InfoRow(label: "Subnet", value: subnet)
+                    }
+                }
+
+                Spacer(minLength: 16)
+            }
+            .padding(20)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private func deleteNetwork() {
+        Task {
+            isWorking = true
+            errorMessage = nil
+            do {
+                try await viewModel.runtime.deleteNetwork(name: network.name)
+            } catch {
+                errorMessage = String.localizedStringWithFormat(
+                    NSLocalizedString("Failed to delete network: %@", comment: "Network delete error"),
+                    error.localizedDescription
+                )
+            }
+            isWorking = false
+        }
+    }
+
+    private func pruneNetworks() {
+        Task {
+            isWorking = true
+            errorMessage = nil
+            do {
+                try await viewModel.runtime.pruneNetworks()
+            } catch {
+                errorMessage = String.localizedStringWithFormat(
+                    NSLocalizedString("Failed to prune networks: %@", comment: "Network prune error"),
+                    error.localizedDescription
+                )
+            }
+            isWorking = false
+        }
+    }
+}
+
+// MARK: - Connected Containers View
+
+struct NetworkContainersView: View {
+    let network: ContainerCLI.NetworkInfo
+    @ObservedObject var viewModel: ContainerViewModel
+    @State private var rows: [ConnectedNetworkContainer] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text(network.name)
-                    .font(.title2)
-                    .fontWeight(.semibold)
-
-                Spacer()
-            }
-            .padding()
-
-            Divider()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    InfoSection(title: "General") {
-                        InfoRow(label: "Name", value: network.name)
-                        InfoRow(label: "Driver", value: network.driver)
-                        InfoRow(label: "ID", value: String(network.id.prefix(12)))
-                    }
-
-                    if let subnet = network.subnet {
-                        InfoSection(title: "Networking") {
-                            InfoRow(label: "Subnet", value: subnet)
+            if isLoading && rows.isEmpty {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let errorMessage {
+                ContentUnavailableView {
+                    Label("Unable to Load Containers", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(errorMessage)
+                } actions: {
+                    Button("Retry") { Task { await loadConnectedContainers() } }
+                }
+            } else if rows.isEmpty {
+                ContentUnavailableView {
+                    Label("No Connected Containers", systemImage: "network")
+                } description: {
+                    Text("No containers are attached to this network.")
+                }
+            } else {
+                Table(rows) {
+                    TableColumn("Name") { row in
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(row.statusColor)
+                                .frame(width: 8, height: 8)
+                            Text(row.name)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                         }
                     }
+                    .width(min: 160, ideal: 240)
 
-                    Spacer()
+                    TableColumn("Image") { row in
+                        Text(ImageDisplayHelper.simplifyRepository(row.image))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .width(min: 160, ideal: 260)
+
+                    TableColumn("Status") { row in
+                        Text(row.status.displayName)
+                            .foregroundStyle(.secondary)
+                    }
+                    .width(min: 90, ideal: 120)
                 }
-                .padding()
             }
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+        .task(id: network.id) {
+            await loadConnectedContainers()
+        }
+    }
+
+    private func loadConnectedContainers() async {
+        isLoading = true
+        errorMessage = nil
+
+        var connected: [ConnectedNetworkContainer] = []
+        for container in viewModel.containers {
+            do {
+                let details = try await viewModel.runtime.inspectContainer(id: container.id)
+                let matches = details.configuration.networks.contains { $0.network == network.name }
+                if matches {
+                    connected.append(
+                        ConnectedNetworkContainer(
+                            id: container.id,
+                            name: container.name,
+                            image: container.image,
+                            status: container.status
+                        )
+                    )
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+
+        rows = connected.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        isLoading = false
+    }
+}
+
+private struct ConnectedNetworkContainer: Identifiable {
+    let id: String
+    let name: String
+    let image: String
+    let status: ContainerStatus
+
+    var statusColor: Color {
+        switch status {
+        case .running: return .green
+        case .starting, .stopping, .creating: return .orange
+        case .failed: return .red
+        default: return .gray
         }
     }
 }

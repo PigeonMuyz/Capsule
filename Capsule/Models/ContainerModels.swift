@@ -76,10 +76,10 @@ enum RestartPolicy: String, Codable, Hashable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .no: return "No"
-        case .always: return "Always"
-        case .unlessStopped: return "Unless stopped"
-        case .onFailure: return "On failure"
+        case .no: return String(localized: "No")
+        case .always: return String(localized: "Always")
+        case .unlessStopped: return String(localized: "Unless Stopped")
+        case .onFailure: return String(localized: "On Failure")
         }
     }
 
@@ -184,6 +184,20 @@ struct ContainerSummary: Identifiable, Hashable {
     }
 }
 
+// MARK: - Container Stats
+
+/// Container resource usage statistics (from `container stats`)
+struct ContainerStats {
+    let cpuPercent: Double
+    let memoryUsage: UInt64
+    let memoryLimit: UInt64
+    let memoryPercent: Double
+    let networkRx: UInt64
+    let networkTx: UInt64
+    let blockRead: UInt64
+    let blockWrite: UInt64
+}
+
 // MARK: - Log Line
 
 /// Log line from container output
@@ -207,6 +221,7 @@ enum ContainerError: Error, LocalizedError {
     case containerNotFound(String)
     case containerAlreadyExists(String)
     case invalidConfiguration(String)
+    case invalidResponse(String)
     case startFailed(String)
     case stopFailed(String)
     case deleteFailed(String)
@@ -215,21 +230,23 @@ enum ContainerError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .runtimeNotBootstrapped:
-            return "Container runtime is not initialized"
+            return String(localized: "Container runtime is not initialized")
         case .containerNotFound(let id):
-            return "Container not found: \(id)"
+            return String.localizedStringWithFormat(NSLocalizedString("Container not found: %@", comment: "Container not found error"), id)
         case .containerAlreadyExists(let name):
-            return "Container with name '\(name)' already exists"
+            return String.localizedStringWithFormat(NSLocalizedString("Container with name '%@' already exists", comment: "Duplicate container name error"), name)
         case .invalidConfiguration(let reason):
-            return "Invalid configuration: \(reason)"
+            return String.localizedStringWithFormat(NSLocalizedString("Invalid configuration: %@", comment: "Invalid container configuration error"), reason)
+        case .invalidResponse(let reason):
+            return String.localizedStringWithFormat(NSLocalizedString("Invalid response: %@", comment: "Invalid runtime response error"), reason)
         case .startFailed(let reason):
-            return "Failed to start container: \(reason)"
+            return String.localizedStringWithFormat(NSLocalizedString("Failed to start container: %@", comment: "Container start error"), reason)
         case .stopFailed(let reason):
-            return "Failed to stop container: \(reason)"
+            return String.localizedStringWithFormat(NSLocalizedString("Failed to stop container: %@", comment: "Container stop error"), reason)
         case .deleteFailed(let reason):
-            return "Failed to delete container: \(reason)"
+            return String.localizedStringWithFormat(NSLocalizedString("Failed to delete container: %@", comment: "Container delete error"), reason)
         case .imageNotAvailable(let image):
-            return "Image not available: \(image)"
+            return String.localizedStringWithFormat(NSLocalizedString("Image not available: %@", comment: "Image unavailable error"), image)
         }
     }
 }
