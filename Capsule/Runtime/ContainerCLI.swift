@@ -83,6 +83,13 @@ actor ContainerCLI {
         logger.info("Container stopped: \(id)")
     }
 
+    /// Force stop a container by sending SIGKILL without waiting for graceful shutdown.
+    func forceStopContainer(id: String) async throws {
+        logger.info("Force stopping container: \(id)")
+        _ = try await runCommand(["stop", "--signal", "KILL", "--time", "0", id])
+        logger.info("Container force stopped: \(id)")
+    }
+
     /// Delete a container by ID
     func deleteContainer(id: String) async throws {
         logger.info("Deleting container: \(id)")
@@ -554,6 +561,34 @@ actor ContainerCLI {
         logger.info("Image pulled: \(reference)")
     }
 
+    /// Tag an image
+    func tagImage(source: String, target: String) async throws {
+        logger.info("Tagging image: \(source) -> \(target)")
+        _ = try await runCommand(["image", "tag", source, target])
+        logger.info("Image tagged: \(target)")
+    }
+
+    /// Push an image reference
+    func pushImage(reference: String) async throws {
+        logger.info("Pushing image: \(reference)")
+        _ = try await runCommand(["image", "push", "--progress", "plain", reference])
+        logger.info("Image pushed: \(reference)")
+    }
+
+    /// Prune unused images
+    func pruneImages(all: Bool = false) async throws {
+        logger.info("Pruning images")
+        var args = ["image", "prune"]
+        if all { args.append("--all") }
+        _ = try await runCommand(args)
+    }
+
+    /// Inspect an image and return raw JSON/text from the CLI.
+    func inspectImage(reference: String) async throws -> String {
+        logger.info("Inspecting image: \(reference)")
+        return try await runCommand(["image", "inspect", reference])
+    }
+
     /// Delete an image
     func deleteImage(id: String) async throws {
         logger.info("Deleting image: \(id)")
@@ -631,6 +666,12 @@ actor ContainerCLI {
         logger.info("Volume deleted: \(name)")
     }
 
+    /// Prune unused volumes
+    func pruneVolumes() async throws {
+        logger.info("Pruning volumes")
+        _ = try await runCommand(["volume", "prune"])
+    }
+
     // MARK: - Networks
 
     struct NetworkInfo: Codable, Identifiable {
@@ -694,8 +735,23 @@ actor ContainerCLI {
     /// Create a network
     func createNetwork(name: String, driver: String = "bridge") async throws {
         logger.info("Creating network: \(name)")
-        _ = try await runCommand(["network", "create", "--driver", driver, name])
+        var args = ["network", "create"]
+        if let plugin = networkPlugin(for: driver) {
+            args.append(contentsOf: ["--plugin", plugin])
+        }
+        args.append(name)
+        _ = try await runCommand(args)
         logger.info("Network created: \(name)")
+    }
+
+    private func networkPlugin(for driver: String) -> String? {
+        let normalized = driver.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalized {
+        case "", "bridge", "default", "nat", "host":
+            return nil
+        default:
+            return driver
+        }
     }
 
     /// Delete a network
@@ -703,6 +759,12 @@ actor ContainerCLI {
         logger.info("Deleting network: \(name)")
         _ = try await runCommand(["network", "rm", name])
         logger.info("Network deleted: \(name)")
+    }
+
+    /// Prune unused networks
+    func pruneNetworks() async throws {
+        logger.info("Pruning networks")
+        _ = try await runCommand(["network", "prune"])
     }
 
     // MARK: - Machines
@@ -725,6 +787,55 @@ actor ContainerCLI {
         var isRunning: Bool { status.lowercased() == "running" }
     }
 
+    /// Detailed machine inspect payload.
+    struct MachineDetails: Codable, Identifiable {
+        let id: String
+        let status: String?
+        let `default`: Bool?
+        let cpus: Int?
+        let memory: Int?
+        let diskSize: Int?
+        let createdDate: String?
+        let homeMount: String?
+        let image: MachineImage?
+        let platform: MachinePlatform?
+        let userSetup: MachineUserSetup?
+
+        var imageReference: String? { image?.reference }
+        var imageDigest: String? { image?.descriptor?.digest }
+        var platformDisplay: String {
+            [platform?.os, platform?.architecture, platform?.variant]
+                .compactMap { value in
+                    guard let value, !value.isEmpty else { return nil }
+                    return value
+                }
+                .joined(separator: "/")
+        }
+
+        struct MachineImage: Codable {
+            let reference: String?
+            let descriptor: MachineDescriptor?
+        }
+
+        struct MachineDescriptor: Codable {
+            let digest: String?
+            let mediaType: String?
+            let size: Int?
+        }
+
+        struct MachinePlatform: Codable {
+            let architecture: String?
+            let os: String?
+            let variant: String?
+        }
+
+        struct MachineUserSetup: Codable {
+            let uid: Int?
+            let gid: Int?
+            let username: String?
+        }
+    }
+
     /// List all container machines.
     func listMachines() async throws -> [MachineInfo] {
         logger.info("Listing machines via CLI")
@@ -740,6 +851,20 @@ actor ContainerCLI {
             logger.error("Failed to parse machine list: \(error). Raw: \(output)")
             return []
         }
+    }
+
+    /// Inspect a machine and return structured details.
+    func inspectMachine(name: String) async throws -> MachineDetails {
+        logger.info("Inspecting machine: \(name)")
+        let output = try await runCommand(["machine", "inspect", name])
+        guard let data = output.data(using: .utf8) else {
+            throw CLIError.invalidOutput("Failed to convert output to data")
+        }
+        let records = try JSONDecoder().decode([MachineDetails].self, from: data)
+        guard let details = records.first else {
+            throw CLIError.invalidOutput("Machine inspect returned no records")
+        }
+        return details
     }
 
     /// Create (and boot) a new machine from an image.
@@ -771,6 +896,26 @@ actor ContainerCLI {
     func deleteMachine(name: String) async throws {
         logger.info("Deleting machine: \(name)")
         _ = try await runCommand(["machine", "delete", name])
+    }
+
+    /// Set the default container machine.
+    func setDefaultMachine(name: String) async throws {
+        logger.info("Setting default machine: \(name)")
+        _ = try await runCommand(["machine", "set-default", name])
+    }
+
+    /// Fetch machine runtime or boot logs.
+    func getMachineLogs(name: String, tail: Int? = 200, boot: Bool = false) async throws -> String {
+        logger.info("Fetching machine logs: \(name)")
+        var args = ["machine", "logs"]
+        if boot {
+            args.append("--boot")
+        }
+        if let tail {
+            args.append(contentsOf: ["-n", "\(tail)"])
+        }
+        args.append(name)
+        return try await runCommand(args)
     }
 
     // MARK: - Helper Methods
@@ -881,13 +1026,13 @@ enum CLIError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .commandFailed(let code, let message):
-            return "Command failed with code \(code): \(message)"
+            return String.localizedStringWithFormat(NSLocalizedString("Command failed with code %lld: %@", comment: "CLI command failed error"), Int64(code), message)
         case .executionFailed(let message):
-            return "Execution failed: \(message)"
+            return String.localizedStringWithFormat(NSLocalizedString("Execution failed: %@", comment: "CLI execution failed error"), message)
         case .invalidOutput(let message):
-            return "Invalid output: \(message)"
+            return String.localizedStringWithFormat(NSLocalizedString("Invalid output: %@", comment: "CLI invalid output error"), message)
         case .parseError(let message):
-            return "Parse error: \(message)"
+            return String.localizedStringWithFormat(NSLocalizedString("Parse error: %@", comment: "CLI parse error"), message)
         }
     }
 }

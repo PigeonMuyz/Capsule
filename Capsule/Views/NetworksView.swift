@@ -151,6 +151,7 @@ struct NetworkRow: View {
 
 struct NetworkDetailPanel: View {
     let network: ContainerCLI.NetworkInfo?
+    @ObservedObject var viewModel: ContainerViewModel
 
     @State private var selectedTab: DetailTab = .overview
 
@@ -159,6 +160,13 @@ struct NetworkDetailPanel: View {
         case containers = "Containers"
 
         var id: String { rawValue }
+
+        var title: LocalizedStringKey {
+            switch self {
+            case .overview: return "Overview"
+            case .containers: return "Containers"
+            }
+        }
     }
 
     var body: some View {
@@ -166,9 +174,9 @@ struct NetworkDetailPanel: View {
             if let network = network {
                 switch selectedTab {
                 case .overview:
-                    NetworkOverviewView(network: network)
+                    NetworkOverviewView(network: network, viewModel: viewModel)
                 case .containers:
-                    NetworkContainersView(network: network)
+                    NetworkContainersView(network: network, viewModel: viewModel)
                 }
             } else {
                 NoSelectionView(icon: "network", message: "Select a network to view details")
@@ -179,7 +187,7 @@ struct NetworkDetailPanel: View {
             ToolbarItem(placement: .principal) {
                 Picker("", selection: $selectedTab) {
                     ForEach(DetailTab.allCases) { tab in
-                        Text(tab.rawValue).tag(tab)
+                        Text(tab.title).tag(tab)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -194,10 +202,22 @@ struct NetworkDetailPanel: View {
 
 struct NetworkOverviewView: View {
     let network: ContainerCLI.NetworkInfo
+    @ObservedObject var viewModel: ContainerViewModel
+    @State private var isWorking = false
+    @State private var errorMessage: String?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                if let errorMessage {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+
                 // Actions
                 InfoSection(title: "Actions") {
                     HStack(spacing: 12) {
@@ -205,13 +225,20 @@ struct NetworkOverviewView: View {
                             Label("Delete", systemImage: "trash")
                         }
                         .buttonStyle(.bordered)
+                        .disabled(isWorking)
 
                         Button(action: pruneNetworks) {
                             Label("Prune Unused", systemImage: "trash.circle")
                         }
                         .buttonStyle(.bordered)
+                        .disabled(isWorking)
 
                         Spacer()
+
+                        if isWorking {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
                     }
                 }
 
@@ -239,11 +266,35 @@ struct NetworkOverviewView: View {
     }
 
     private func deleteNetwork() {
-        // TODO: Implement delete network
+        Task {
+            isWorking = true
+            errorMessage = nil
+            do {
+                try await viewModel.runtime.deleteNetwork(name: network.name)
+            } catch {
+                errorMessage = String.localizedStringWithFormat(
+                    NSLocalizedString("Failed to delete network: %@", comment: "Network delete error"),
+                    error.localizedDescription
+                )
+            }
+            isWorking = false
+        }
     }
 
     private func pruneNetworks() {
-        // TODO: Implement prune networks
+        Task {
+            isWorking = true
+            errorMessage = nil
+            do {
+                try await viewModel.runtime.pruneNetworks()
+            } catch {
+                errorMessage = String.localizedStringWithFormat(
+                    NSLocalizedString("Failed to prune networks: %@", comment: "Network prune error"),
+                    error.localizedDescription
+                )
+            }
+            isWorking = false
+        }
     }
 }
 
@@ -251,22 +302,107 @@ struct NetworkOverviewView: View {
 
 struct NetworkContainersView: View {
     let network: ContainerCLI.NetworkInfo
+    @ObservedObject var viewModel: ContainerViewModel
+    @State private var rows: [ConnectedNetworkContainer] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Connected Containers")
-                    .font(.headline)
+        VStack(spacing: 0) {
+            if isLoading && rows.isEmpty {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let errorMessage {
+                ContentUnavailableView {
+                    Label("Unable to Load Containers", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(errorMessage)
+                } actions: {
+                    Button("Retry") { Task { await loadConnectedContainers() } }
+                }
+            } else if rows.isEmpty {
+                ContentUnavailableView {
+                    Label("No Connected Containers", systemImage: "network")
+                } description: {
+                    Text("No containers are attached to this network.")
+                }
+            } else {
+                Table(rows) {
+                    TableColumn("Name") { row in
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(row.statusColor)
+                                .frame(width: 8, height: 8)
+                            Text(row.name)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
+                    .width(min: 160, ideal: 240)
 
-                Text("Coming soon: List all containers connected to this network with IP addresses")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    TableColumn("Image") { row in
+                        Text(ImageDisplayHelper.simplifyRepository(row.image))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .width(min: 160, ideal: 260)
 
-                Spacer()
+                    TableColumn("Status") { row in
+                        Text(row.status.displayName)
+                            .foregroundStyle(.secondary)
+                    }
+                    .width(min: 90, ideal: 120)
+                }
             }
-            .padding(20)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .task(id: network.id) {
+            await loadConnectedContainers()
+        }
+    }
+
+    private func loadConnectedContainers() async {
+        isLoading = true
+        errorMessage = nil
+
+        var connected: [ConnectedNetworkContainer] = []
+        for container in viewModel.containers {
+            do {
+                let details = try await viewModel.runtime.inspectContainer(id: container.id)
+                let matches = details.configuration.networks.contains { $0.network == network.name }
+                if matches {
+                    connected.append(
+                        ConnectedNetworkContainer(
+                            id: container.id,
+                            name: container.name,
+                            image: container.image,
+                            status: container.status
+                        )
+                    )
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+
+        rows = connected.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        isLoading = false
+    }
+}
+
+private struct ConnectedNetworkContainer: Identifiable {
+    let id: String
+    let name: String
+    let image: String
+    let status: ContainerStatus
+
+    var statusColor: Color {
+        switch status {
+        case .running: return .green
+        case .starting, .stopping, .creating: return .orange
+        case .failed: return .red
+        default: return .gray
+        }
     }
 }
 

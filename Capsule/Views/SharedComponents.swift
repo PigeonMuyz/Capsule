@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Section wrapper for consistent styling
 struct InfoSection<Content: View>: View {
-    let title: String
+    let title: LocalizedStringKey
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -24,9 +24,64 @@ struct InfoSection<Content: View>: View {
     }
 }
 
+/// Collapsible card used by detail pages to keep dense inspect data scannable.
+struct CollapsibleInfoCard<Content: View>: View {
+    let title: LocalizedStringKey
+    let systemImage: String
+    @Binding var isExpanded: Bool
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: systemImage)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 18)
+
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                Divider()
+                    .padding(.horizontal, 12)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    content
+                }
+                .padding(12)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.secondary.opacity(0.14))
+        }
+    }
+}
+
 /// Row for displaying key-value pairs
 struct InfoRow: View {
-    let label: String
+    let label: LocalizedStringKey
     let value: String
 
     var body: some View {

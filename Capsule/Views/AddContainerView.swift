@@ -46,7 +46,7 @@ struct AddContainerView: View {
             networkText = service.networks.joined(separator: ", ")
             restartPolicy = service.restartPolicy ?? RestartPolicy.no.rawValue
             healthcheck = service.healthcheck
-            commandText = service.command.joined(separator: " ")
+            commandText = ShellCommandTokenizer.join(service.command)
         }
 
         func service() -> ComposeProject.ComposeService {
@@ -69,7 +69,7 @@ struct AddContainerView: View {
                 healthcheck: healthcheck,
                 cpus: 2,
                 memoryGB: 2,
-                command: commandText.trimmed.isEmpty ? [] : commandText.split(separator: " ").map(String.init)
+                command: ShellCommandTokenizer.split(commandText.trimmed)
             )
         }
     }
@@ -1273,7 +1273,7 @@ struct AddContainerView: View {
     private func parseCommand(_ command: String) -> [String] {
         let trimmed = command.trimmed
         guard !trimmed.isEmpty else { return [] }
-        return trimmed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        return ShellCommandTokenizer.split(trimmed)
     }
 
     /// Build a `--publish` spec ("host:container") from a row, skipping incomplete rows.

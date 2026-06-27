@@ -11,6 +11,7 @@ class ContainerViewModel: ObservableObject {
     // MARK: - Published Properties
 
     @Published var containers: [ContainerSummary] = []
+    @Published var pendingCreations: [PendingContainerCreation] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var isRuntimeBootstrapped = false
@@ -20,6 +21,13 @@ class ContainerViewModel: ObservableObject {
     let runtime = RuntimeCore()
     private var updateTask: Task<Void, Never>?
     private var restartAttempts: [String: Date] = [:]
+
+    struct PendingContainerCreation: Identifiable, Hashable {
+        let id = UUID()
+        let name: String
+        let image: String
+        let startImmediately: Bool
+    }
 
     // MARK: - Initialization
 
@@ -123,6 +131,33 @@ class ContainerViewModel: ObservableObject {
         isLoading = false
     }
 
+    func createContainerInBackground(spec: ContainerSpec, startImmediately: Bool) {
+        let pending = PendingContainerCreation(
+            name: spec.name,
+            image: spec.image,
+            startImmediately: startImmediately
+        )
+        pendingCreations.append(pending)
+        errorMessage = nil
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                logger.info("Creating container in background: \(spec.name)")
+                let summary = try await runtime.createContainer(spec)
+                if startImmediately {
+                    try await runtime.startContainer(id: summary.id)
+                }
+                await refreshContainers()
+                logger.info("Background container create finished: \(spec.name)")
+            } catch {
+                logger.error("Failed to create container in background: \(error.localizedDescription)")
+                errorMessage = error.localizedDescription
+            }
+            pendingCreations.removeAll { $0.id == pending.id }
+        }
+    }
+
     /// Start a container
     func startContainer(id: String) async {
         do {
@@ -151,6 +186,22 @@ class ContainerViewModel: ObservableObject {
             logger.info("Container stopped: \(id)")
         } catch {
             logger.error("Failed to stop container: \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Force stop a container with SIGKILL.
+    func forceStopContainer(id: String) async {
+        do {
+            logger.info("Force stopping container: \(id)")
+
+            RestartPolicyStore.shared.markManuallyStopped(id, stopped: true)
+            try await runtime.forceStopContainer(id: id)
+
+            await refreshContainers()
+            logger.info("Container force stopped: \(id)")
+        } catch {
+            logger.error("Failed to force stop container: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }

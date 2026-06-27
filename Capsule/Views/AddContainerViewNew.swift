@@ -12,9 +12,15 @@ struct AddContainerViewNew: View {
     // Single container fields
     @State private var image = ""
     @State private var name = ""
+    @State private var command = ""
     @State private var ports: [PortMapping] = []
     @State private var volumes: [VolumeMapping] = []
     @State private var environment: [EnvVar] = []
+    @State private var network = ""
+    @State private var cpus: Double = 2
+    @State private var memoryGB: Double = 2
+    @State private var restartPolicy: RestartPolicy = .no
+    @State private var availableNetworks: [ContainerCLI.NetworkInfo] = []
 
     // Compose fields
     @State private var projectName = ""
@@ -129,6 +135,53 @@ struct AddContainerViewNew: View {
 
                     TextField("Container name (optional)", text: $name)
                         .textFieldStyle(.roundedBorder)
+
+                    TextField("Command (optional)", text: $command)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                }
+
+                Divider()
+
+                // Network & Resources section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Network & Resources")
+                        .font(.headline)
+
+                    Picker("Network", selection: $network) {
+                        Text("Default").tag("")
+                        Text("Host").tag("host")
+                        Text("Bridge").tag("bridge")
+                        ForEach(availableNetworks) { net in
+                            Text(net.name).tag(net.name)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("CPUs")
+                                .frame(width: 80, alignment: .leading)
+                            Slider(value: $cpus, in: 1...8, step: 1)
+                            Text("\(Int(cpus))")
+                                .frame(width: 40, alignment: .trailing)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        HStack {
+                            Text("Memory")
+                                .frame(width: 80, alignment: .leading)
+                            Slider(value: $memoryGB, in: 0.5...16, step: 0.5)
+                            Text("\(memoryGB, specifier: "%.1f") GB")
+                                .frame(width: 80, alignment: .trailing)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Picker("Restart", selection: $restartPolicy) {
+                        ForEach(RestartPolicy.allCases) { policy in
+                            Text(policy.displayName).tag(policy)
+                        }
+                    }
                 }
 
                 Divider()
@@ -277,6 +330,9 @@ struct AddContainerViewNew: View {
             }
             .padding(20)
         }
+        .task {
+            availableNetworks = (try? await viewModel.runtime.listNetworks()) ?? []
+        }
     }
 
     // MARK: - Docker Compose Tab
@@ -366,14 +422,24 @@ struct AddContainerViewNew: View {
             ? suggestedName(from: trimmedImage)
             : name.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        let trimmedCommand = command.trimmingCharacters(in: .whitespacesAndNewlines)
+
         var spec = ContainerSpec(
             name: containerName,
             image: trimmedImage,
-            cpus: 2,
-            memoryBytes: 2 * 1024 * 1024 * 1024,
-            command: [],
+            cpus: Int(cpus),
+            memoryBytes: UInt64(memoryGB * 1024 * 1024 * 1024),
+            command: ShellCommandTokenizer.split(trimmedCommand),
             workingDirectory: "/"
         )
+
+        // Network
+        if !network.isEmpty {
+            spec.network = network
+        }
+
+        // Restart policy
+        spec.restartPolicy = restartPolicy
 
         // Add ports
         spec.publishedPorts = ports.compactMap { port in

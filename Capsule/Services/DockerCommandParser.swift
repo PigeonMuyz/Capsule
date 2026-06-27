@@ -9,10 +9,8 @@ struct DockerCommandParser {
         let normalized = command
             .replacingOccurrences(of: "\\\n", with: " ")
             .replacingOccurrences(of: "\\\r\n", with: " ")
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
 
-        var args = normalized
+        var args = ShellCommandTokenizer.split(normalized)
 
         guard args.first == "docker" && args.count > 1 && args[1] == "run" else {
             throw ParseError.invalidCommand
@@ -286,9 +284,9 @@ struct DockerCommandParser {
         var errorDescription: String? {
             switch self {
             case .invalidCommand:
-                return "Invalid docker run command"
+                return String(localized: "Invalid docker run command")
             case .missingImage:
-                return "No image specified"
+                return String(localized: "No image specified")
             }
         }
     }

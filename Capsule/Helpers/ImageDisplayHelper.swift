@@ -32,20 +32,20 @@ struct ImageDisplayHelper {
     /// 获取镜像的 Registry 标签
     static func getRegistryBadge(_ repository: String) -> String? {
         if repository.hasPrefix("docker.io/") {
-            return "Docker Hub"
+            return String(localized: "Docker Hub")
         }
 
         if repository.hasPrefix("ghcr.io/") {
-            return "GitHub"
+            return String(localized: "GitHub")
         }
 
         if repository.hasPrefix("gcr.io/") {
-            return "GCR"
+            return String(localized: "GCR")
         }
 
         // 本地构建的镜像（没有 registry 前缀）
         if !repository.contains("/") || (!repository.hasPrefix("docker.io/") && !repository.hasPrefix("ghcr.io/") && !repository.hasPrefix("gcr.io/")) {
-            return "Local"
+            return String(localized: "Local")
         }
 
         return nil

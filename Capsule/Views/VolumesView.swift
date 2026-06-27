@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Middle column of the Volumes view: the volume list. Auto-refreshes on a timer.
@@ -151,6 +152,7 @@ struct VolumeRow: View {
 
 struct VolumeDetailPanel: View {
     let volume: ContainerCLI.VolumeInfo?
+    @ObservedObject var viewModel: ContainerViewModel
 
     @State private var selectedTab: DetailTab = .overview
 
@@ -159,6 +161,13 @@ struct VolumeDetailPanel: View {
         case files = "Files"
 
         var id: String { rawValue }
+
+        var title: LocalizedStringKey {
+            switch self {
+            case .overview: return "Overview"
+            case .files: return "Files"
+            }
+        }
     }
 
     var body: some View {
@@ -166,7 +175,7 @@ struct VolumeDetailPanel: View {
             if let volume = volume {
                 switch selectedTab {
                 case .overview:
-                    VolumeOverviewView(volume: volume)
+                    VolumeOverviewView(volume: volume, viewModel: viewModel)
                 case .files:
                     VolumeFilesView(volume: volume)
                 }
@@ -179,7 +188,7 @@ struct VolumeDetailPanel: View {
             ToolbarItem(placement: .principal) {
                 Picker("", selection: $selectedTab) {
                     ForEach(DetailTab.allCases) { tab in
-                        Text(tab.rawValue).tag(tab)
+                        Text(tab.title).tag(tab)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -194,10 +203,23 @@ struct VolumeDetailPanel: View {
 
 struct VolumeOverviewView: View {
     let volume: ContainerCLI.VolumeInfo
+    @ObservedObject var viewModel: ContainerViewModel
+    @State private var referencedContainers: [VolumeReferenceRow] = []
+    @State private var isWorking = false
+    @State private var errorMessage: String?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                if let errorMessage {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+
                 // Actions
                 InfoSection(title: "Actions") {
                     HStack(spacing: 12) {
@@ -205,13 +227,20 @@ struct VolumeOverviewView: View {
                             Label("Delete", systemImage: "trash")
                         }
                         .buttonStyle(.bordered)
+                        .disabled(isWorking)
 
                         Button(action: pruneVolumes) {
                             Label("Prune Unused", systemImage: "trash.circle")
                         }
                         .buttonStyle(.bordered)
+                        .disabled(isWorking)
 
                         Spacer()
+
+                        if isWorking {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
                     }
                 }
 
@@ -236,9 +265,41 @@ struct VolumeOverviewView: View {
 
                 // Referenced Containers
                 InfoSection(title: "Referenced By") {
-                    Text("Coming soon: List containers using this volume")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if referencedContainers.isEmpty {
+                        Text("No containers reference this volume")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(referencedContainers) { row in
+                            HStack(alignment: .top, spacing: 10) {
+                                Circle()
+                                    .fill(row.statusColor)
+                                    .frame(width: 8, height: 8)
+                                    .padding(.top, 5)
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(row.containerName)
+                                        .font(.system(.body, design: .monospaced))
+                                        .textSelection(.enabled)
+                                    Text(row.destination)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                }
+
+                                Spacer()
+
+                                Text(row.status.displayName)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 4)
+
+                            if row.id != referencedContainers.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
                 }
 
                 Spacer(minLength: 16)
@@ -246,14 +307,71 @@ struct VolumeOverviewView: View {
             .padding(20)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .task(id: volume.id) {
+            await loadReferences()
+        }
     }
 
     private func deleteVolume() {
-        // TODO: Implement delete volume
+        Task {
+            isWorking = true
+            errorMessage = nil
+            do {
+                try await viewModel.runtime.deleteVolume(name: volume.name)
+            } catch {
+                errorMessage = String.localizedStringWithFormat(
+                    NSLocalizedString("Failed to delete volume: %@", comment: "Volume delete error"),
+                    error.localizedDescription
+                )
+            }
+            isWorking = false
+        }
     }
 
     private func pruneVolumes() {
-        // TODO: Implement prune volumes
+        Task {
+            isWorking = true
+            errorMessage = nil
+            do {
+                try await viewModel.runtime.pruneVolumes()
+            } catch {
+                errorMessage = String.localizedStringWithFormat(
+                    NSLocalizedString("Failed to prune volumes: %@", comment: "Volume prune error"),
+                    error.localizedDescription
+                )
+            }
+            isWorking = false
+        }
+    }
+
+    private func loadReferences() async {
+        var references: [VolumeReferenceRow] = []
+        for container in viewModel.containers {
+            do {
+                let details = try await viewModel.runtime.inspectContainer(id: container.id)
+                for mount in details.configuration.mounts where mountReferencesVolume(mount) {
+                    references.append(
+                        VolumeReferenceRow(
+                            id: "\(container.id)-\(mount.destination)",
+                            containerName: container.name,
+                            destination: mount.destination,
+                            status: container.status
+                        )
+                    )
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+        referencedContainers = references.sorted {
+            $0.containerName.localizedCaseInsensitiveCompare($1.containerName) == .orderedAscending
+        }
+    }
+
+    private func mountReferencesVolume(_ mount: ContainerCLI.ContainerDetails.Configuration.Mount) -> Bool {
+        if mount.source == volume.name { return true }
+        if !volume.mountPoint.isEmpty, mount.source == volume.mountPoint { return true }
+        return mount.source.hasSuffix("/\(volume.name)")
     }
 }
 
@@ -261,22 +379,237 @@ struct VolumeOverviewView: View {
 
 struct VolumeFilesView: View {
     let volume: ContainerCLI.VolumeInfo
+    @State private var currentURL: URL?
+    @State private var entries: [VolumeFileEntry] = []
+    @State private var selectedEntryID: VolumeFileEntry.ID?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Volume Files")
-                    .font(.headline)
+        VStack(spacing: 0) {
+            fileToolbar
 
-                Text("Coming soon: Browse files inside the volume")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            Divider()
 
-                Spacer()
+            if volume.mountPoint.isEmpty {
+                ContentUnavailableView {
+                    Label("No Mount Point", systemImage: "externaldrive.badge.questionmark")
+                } description: {
+                    Text("This volume does not report a host path.")
+                }
+            } else if isLoading && entries.isEmpty {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let errorMessage {
+                ContentUnavailableView {
+                    Label("Unable to Load Files", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(errorMessage)
+                } actions: {
+                    Button("Retry") { loadFiles() }
+                }
+            } else {
+                Table(entries, selection: $selectedEntryID) {
+                    TableColumn("Name") { entry in
+                        HStack(spacing: 8) {
+                            Image(systemName: entry.iconName)
+                                .foregroundStyle(entry.isDirectory ? .blue : .secondary)
+                                .frame(width: 16)
+                            Text(entry.name)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
+                    .width(min: 180, ideal: 320)
+
+                    TableColumn("Date Modified") { entry in
+                        Text(entry.modified)
+                            .foregroundStyle(.secondary)
+                    }
+                    .width(min: 130, ideal: 170)
+
+                    TableColumn("Size") { entry in
+                        Text(entry.sizeDisplay)
+                            .foregroundStyle(.secondary)
+                    }
+                    .width(min: 80, ideal: 110)
+
+                    TableColumn("Kind") { entry in
+                        Text(entry.kind)
+                            .foregroundStyle(.secondary)
+                    }
+                    .width(min: 90, ideal: 140)
+                }
             }
-            .padding(20)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .task(id: volume.id) {
+            currentURL = URL(fileURLWithPath: volume.mountPoint, isDirectory: true)
+            loadFiles()
+        }
+    }
+
+    private var fileToolbar: some View {
+        HStack(spacing: 8) {
+            Button(action: goUp) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canGoUp)
+            .help("Back")
+
+            Text(currentURL?.path ?? volume.mountPoint)
+                .font(.system(.body, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+
+            Spacer()
+
+            Button(action: openSelected) {
+                Image(systemName: "arrow.up.forward.app")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .disabled(selectedEntry == nil)
+            .help("Open")
+
+            Button(action: revealCurrentFolder) {
+                Image(systemName: "finder")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .disabled(currentURL == nil)
+            .help("Show in Finder")
+
+            Button(action: loadFiles) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .disabled(isLoading || currentURL == nil)
+            .help("Refresh")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    private var selectedEntry: VolumeFileEntry? {
+        guard let selectedEntryID else { return nil }
+        return entries.first { $0.id == selectedEntryID }
+    }
+
+    private var canGoUp: Bool {
+        guard let currentURL else { return false }
+        return currentURL.standardizedFileURL.path != URL(fileURLWithPath: volume.mountPoint, isDirectory: true).standardizedFileURL.path
+    }
+
+    private func loadFiles() {
+        guard let currentURL else { return }
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            let urls = try FileManager.default.contentsOfDirectory(
+                at: currentURL,
+                includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey, .fileSizeKey, .localizedTypeDescriptionKey],
+                options: []
+            )
+
+            entries = urls.compactMap(VolumeFileEntry.init(url:)).sorted { lhs, rhs in
+                if lhs.isDirectory != rhs.isDirectory {
+                    return lhs.isDirectory && !rhs.isDirectory
+                }
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+            selectedEntryID = nil
+        } catch {
+            entries = []
+            errorMessage = error.localizedDescription
+        }
+
+        isLoading = false
+    }
+
+    private func goUp() {
+        guard canGoUp, let currentURL else { return }
+        self.currentURL = currentURL.deletingLastPathComponent()
+        loadFiles()
+    }
+
+    private func openSelected() {
+        guard let selectedEntry else { return }
+        if selectedEntry.isDirectory {
+            currentURL = selectedEntry.url
+            loadFiles()
+        } else {
+            NSWorkspace.shared.open(selectedEntry.url)
+        }
+    }
+
+    private func revealCurrentFolder() {
+        guard let currentURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([currentURL])
+    }
+}
+
+private struct VolumeReferenceRow: Identifiable {
+    let id: String
+    let containerName: String
+    let destination: String
+    let status: ContainerStatus
+
+    var statusColor: Color {
+        switch status {
+        case .running: return .green
+        case .starting, .stopping, .creating: return .orange
+        case .failed: return .red
+        default: return .gray
+        }
+    }
+}
+
+private struct VolumeFileEntry: Identifiable, Hashable {
+    let id: String
+    let url: URL
+    let name: String
+    let isDirectory: Bool
+    let modifiedDate: Date?
+    let size: Int64
+    let kind: String
+
+    init?(url: URL) {
+        do {
+            let values = try url.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey, .fileSizeKey, .localizedTypeDescriptionKey])
+            self.url = url
+            self.id = url.path
+            self.name = url.lastPathComponent
+            self.isDirectory = values.isDirectory ?? false
+            self.modifiedDate = values.contentModificationDate
+            self.size = Int64(values.fileSize ?? 0)
+            self.kind = values.localizedTypeDescription ?? (self.isDirectory ? String(localized: "Folder") : String(localized: "File"))
+        } catch {
+            return nil
+        }
+    }
+
+    var iconName: String {
+        isDirectory ? "folder.fill" : "doc"
+    }
+
+    var modified: String {
+        guard let modifiedDate else { return "—" }
+        return modifiedDate.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    var sizeDisplay: String {
+        if isDirectory { return "—" }
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: size)
     }
 }
 

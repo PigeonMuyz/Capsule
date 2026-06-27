@@ -177,6 +177,24 @@ actor RuntimeCore {
         }
     }
 
+    /// Force stop a container by sending SIGKILL without waiting for graceful shutdown.
+    func forceStopContainer(id: String) async throws {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        logger.info("Force stopping container: \(id)")
+
+        do {
+            RestartPolicyStore.shared.markManuallyStopped(id, stopped: true)
+            try await cli.forceStopContainer(id: id)
+            logger.info("Container force stopped: \(id)")
+        } catch {
+            logger.error("Failed to force stop container: \(error)")
+            throw ContainerError.stopFailed(error.localizedDescription)
+        }
+    }
+
     /// Delete a container
     /// - Parameter id: Container ID
     func deleteContainer(id: String) async throws {
@@ -324,6 +342,42 @@ actor RuntimeCore {
         try await cli.pullImage(reference: reference)
     }
 
+    /// Tag an image
+    func tagImage(source: String, target: String) async throws {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        try await cli.tagImage(source: source, target: target)
+    }
+
+    /// Push an image
+    func pushImage(reference: String) async throws {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        try await cli.pushImage(reference: reference)
+    }
+
+    /// Prune unused images
+    func pruneImages(all: Bool = false) async throws {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        try await cli.pruneImages(all: all)
+    }
+
+    /// Inspect an image and return raw output
+    func inspectImage(reference: String) async throws -> String {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        return try await cli.inspectImage(reference: reference)
+    }
+
     /// Delete an image
     func deleteImage(id: String) async throws {
         guard isInitialized else {
@@ -362,6 +416,15 @@ actor RuntimeCore {
         try await cli.deleteVolume(name: name)
     }
 
+    /// Prune unused volumes
+    func pruneVolumes() async throws {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        try await cli.pruneVolumes()
+    }
+
     // MARK: - Networks
 
     /// List all networks
@@ -391,12 +454,27 @@ actor RuntimeCore {
         try await cli.deleteNetwork(name: name)
     }
 
+    /// Prune unused networks
+    func pruneNetworks() async throws {
+        guard isInitialized else {
+            throw ContainerError.runtimeNotBootstrapped
+        }
+
+        try await cli.pruneNetworks()
+    }
+
     // MARK: - Machines
 
     /// List all container machines (loginable Linux VMs).
     func listMachines() async throws -> [ContainerCLI.MachineInfo] {
         guard isInitialized else { throw ContainerError.runtimeNotBootstrapped }
         return try await cli.listMachines()
+    }
+
+    /// Inspect a machine.
+    func inspectMachine(name: String) async throws -> ContainerCLI.MachineDetails {
+        guard isInitialized else { throw ContainerError.runtimeNotBootstrapped }
+        return try await cli.inspectMachine(name: name)
     }
 
     /// Create (and boot) a new machine.
@@ -421,6 +499,18 @@ actor RuntimeCore {
     func deleteMachine(name: String) async throws {
         guard isInitialized else { throw ContainerError.runtimeNotBootstrapped }
         try await cli.deleteMachine(name: name)
+    }
+
+    /// Set the default machine.
+    func setDefaultMachine(name: String) async throws {
+        guard isInitialized else { throw ContainerError.runtimeNotBootstrapped }
+        try await cli.setDefaultMachine(name: name)
+    }
+
+    /// Fetch machine runtime or boot logs.
+    func getMachineLogs(name: String, tail: Int? = 200, boot: Bool = false) async throws -> String {
+        guard isInitialized else { throw ContainerError.runtimeNotBootstrapped }
+        return try await cli.getMachineLogs(name: name, tail: tail, boot: boot)
     }
 
     // MARK: - Helper Methods

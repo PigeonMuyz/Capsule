@@ -13,7 +13,7 @@ struct DockerComposeParser {
         let yaml = try parseYAML(yamlContent)
 
         guard let root = yaml as? [String: Any] else {
-            throw ParseError.invalidFormat("Root must be a dictionary")
+            throw ParseError.invalidFormat(String(localized: "Root must be a dictionary"))
         }
 
         // Parse services
@@ -59,7 +59,7 @@ struct DockerComposeParser {
         guard let image = serviceDict["image"] as? String else {
             throw ParseError.missingImage(name)
         }
-        let containerName = serviceDict["container_name"] as? String ?? name
+        let containerName = serviceDict["container_name"] as? String ?? ""
         let restartPolicy = serviceDict["restart"] as? String
         let hasHealthcheck = serviceDict["healthcheck"] != nil
 
@@ -154,7 +154,7 @@ struct DockerComposeParser {
         // Optional: command
         var command: [String] = []
         if let commandString = serviceDict["command"] as? String {
-            command = commandString.split(separator: " ").map(String.init)
+            command = ShellCommandTokenizer.split(commandString)
         } else if let commandArray = serviceDict["command"] as? [Any] {
             command = commandArray.compactMap { $0 as? String }
         }
@@ -447,11 +447,14 @@ struct DockerComposeParser {
         var errorDescription: String? {
             switch self {
             case .invalidFormat(let msg):
-                return "Invalid YAML format: \(msg)"
+                let format = NSLocalizedString("Invalid YAML format: %@", comment: "Compose parser error with detail message")
+                return String(format: format, msg)
             case .invalidService(let name):
-                return "Invalid service configuration: \(name)"
+                let format = NSLocalizedString("Invalid service configuration: %@", comment: "Compose parser error with service name")
+                return String(format: format, name)
             case .missingImage(let name):
-                return "Service '\(name)' is missing required 'image' field"
+                let format = NSLocalizedString("Service '%@' is missing required 'image' field", comment: "Compose parser error with service name")
+                return String(format: format, name)
             }
         }
     }

@@ -151,6 +151,14 @@ struct MachineDetailPanel: View {
         case logs = "Logs"
 
         var id: String { rawValue }
+
+        var title: LocalizedStringKey {
+            switch self {
+            case .overview: return "Overview"
+            case .console: return "Console"
+            case .logs: return "Logs"
+            }
+        }
     }
 
     var body: some View {
@@ -173,7 +181,7 @@ struct MachineDetailPanel: View {
             ToolbarItem(placement: .principal) {
                 Picker("", selection: $selectedTab) {
                     ForEach(DetailTab.allCases) { tab in
-                        Text(tab.rawValue).tag(tab)
+                        Text(tab.title).tag(tab)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -189,30 +197,59 @@ struct MachineDetailPanel: View {
 struct MachineOverviewView: View {
     let machine: ContainerCLI.MachineInfo
     @ObservedObject var viewModel: ContainerViewModel
+    @State private var isWorking = false
+    @State private var isLoadingDetails = false
+    @State private var errorMessage: String?
+    @State private var detailsError: String?
+    @State private var details: ContainerCLI.MachineDetails?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                if let errorMessage {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+
                 // Actions
                 InfoSection(title: "Controls") {
                     HStack(spacing: 12) {
+                        if isWorking {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+
                         if machine.isRunning {
                             Button(action: stopMachine) {
                                 Label("Stop", systemImage: "stop.fill")
                             }
                             .buttonStyle(.bordered)
+                            .disabled(isWorking)
                         } else {
                             Button(action: startMachine) {
                                 Label("Start", systemImage: "play.fill")
                             }
                             .buttonStyle(.borderedProminent)
+                            .disabled(isWorking)
                         }
 
                         Button(action: openShell) {
                             Label("Open Shell", systemImage: "terminal")
                         }
                         .buttonStyle(.bordered)
-                        .disabled(!machine.isRunning)
+                        .disabled(!machine.isRunning || isWorking)
+
+                        if machine.default != true {
+                            Button(action: setDefaultMachine) {
+                                Label("Set Default", systemImage: "checkmark.circle")
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(isWorking)
+                        }
 
                         Spacer()
 
@@ -220,6 +257,7 @@ struct MachineOverviewView: View {
                             Label("Delete", systemImage: "trash")
                         }
                         .buttonStyle(.bordered)
+                        .disabled(isWorking)
                     }
                 }
 
@@ -227,18 +265,67 @@ struct MachineOverviewView: View {
                 InfoSection(title: "General") {
                     InfoRow(label: "Name", value: machine.name)
                     Divider()
-                    InfoRow(label: "State", value: machine.state)
+                    InfoRow(label: "State", value: details?.status ?? machine.state)
                     if let ip = machine.ipAddress {
                         Divider()
                         InfoRow(label: "IP Address", value: ip)
+                    }
+                    Divider()
+                    InfoRow(label: "Default", value: (details?.default ?? machine.default) == true ? String(localized: "Yes") : String(localized: "No"))
+                    if let created = details?.createdDate ?? machine.createdDate {
+                        Divider()
+                        InfoRow(label: "Created", value: created)
                     }
                 }
 
                 // Resources
                 InfoSection(title: "Resources") {
-                    InfoRow(label: "CPUs", value: "\(machine.cpus)")
+                    InfoRow(label: "CPUs", value: "\(details?.cpus ?? machine.cpus)")
                     Divider()
-                    InfoRow(label: "Memory", value: formatMemory(machine.memoryBytes))
+                    InfoRow(label: "Memory", value: formatMemory(details?.memory ?? machine.memoryBytes))
+                    if let diskSize = details?.diskSize ?? machine.diskSize {
+                        Divider()
+                        InfoRow(label: "Disk", value: formatStorage(diskSize))
+                    }
+                }
+
+                InfoSection(title: "Configuration") {
+                    if isLoadingDetails && details == nil {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Loading...")
+                                .foregroundStyle(.secondary)
+                        }
+                    } else if let detailsError, details == nil {
+                        Text(detailsError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    } else if let details {
+                        if let image = details.imageReference, !image.isEmpty {
+                            InfoRow(label: "Image", value: image)
+                            Divider()
+                        }
+                        if !details.platformDisplay.isEmpty {
+                            InfoRow(label: "Platform", value: details.platformDisplay)
+                            Divider()
+                        }
+                        if let homeMount = details.homeMount, !homeMount.isEmpty {
+                            InfoRow(label: "Home Mount", value: homeMount)
+                            Divider()
+                        }
+                        if let user = details.userSetup {
+                            InfoRow(label: "User", value: userDisplay(user))
+                            Divider()
+                        }
+                        if let digest = details.imageDigest, !digest.isEmpty {
+                            InfoRow(label: "Digest", value: digest)
+                        }
+                    } else {
+                        Text("No details available")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Spacer(minLength: 16)
@@ -246,6 +333,9 @@ struct MachineOverviewView: View {
             .padding(20)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .task(id: machine.id) {
+            await loadDetails()
+        }
     }
 
     private func formatMemory(_ bytes: Int) -> String {
@@ -255,16 +345,68 @@ struct MachineOverviewView: View {
         return formatter.string(fromByteCount: Int64(bytes))
     }
 
+    private func formatStorage(_ bytes: Int) -> String {
+        guard bytes > 0 else { return "—" }
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(bytes))
+    }
+
+    private func userDisplay(_ user: ContainerCLI.MachineDetails.MachineUserSetup) -> String {
+        let username = user.username ?? ""
+        let name = username.isEmpty ? String(localized: "Unknown") : username
+        let uid = user.uid.map(String.init) ?? "—"
+        let gid = user.gid.map(String.init) ?? "—"
+        return "\(name) (\(uid):\(gid))"
+    }
+
+    private func loadDetails() async {
+        isLoadingDetails = true
+        detailsError = nil
+        do {
+            details = try await viewModel.runtime.inspectMachine(name: machine.name)
+        } catch {
+            detailsError = error.localizedDescription
+        }
+        isLoadingDetails = false
+    }
+
     private func startMachine() {
-        Task { try? await viewModel.runtime.startMachine(name: machine.name) }
+        runMachineAction {
+            try await viewModel.runtime.startMachine(name: machine.name)
+        }
     }
 
     private func stopMachine() {
-        Task { try? await viewModel.runtime.stopMachine(name: machine.name) }
+        runMachineAction {
+            try await viewModel.runtime.stopMachine(name: machine.name)
+        }
     }
 
     private func deleteMachine() {
-        Task { try? await viewModel.runtime.deleteMachine(name: machine.name) }
+        runMachineAction {
+            try await viewModel.runtime.deleteMachine(name: machine.name)
+        }
+    }
+
+    private func setDefaultMachine() {
+        runMachineAction {
+            try await viewModel.runtime.setDefaultMachine(name: machine.name)
+        }
+    }
+
+    private func runMachineAction(_ action: @escaping () async throws -> Void) {
+        isWorking = true
+        errorMessage = nil
+        Task { @MainActor in
+            do {
+                try await action()
+                await loadDetails()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isWorking = false
+        }
     }
 
     /// Open an interactive shell into the machine in Terminal.app.
@@ -325,20 +467,87 @@ struct MachineConsoleView: View {
 struct MachineLogsView: View {
     let machine: ContainerCLI.MachineInfo
     @ObservedObject var viewModel: ContainerViewModel
+    @State private var logs = ""
+    @State private var isLoading = false
+    @State private var showBootLogs = false
+    @State private var tailLines = 200
+    @State private var errorMessage: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Machine Logs")
-                .font(.headline)
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Picker("", selection: $showBootLogs) {
+                    Text("Runtime Logs").tag(false)
+                    Text("Boot Logs").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 220)
 
-            Text("Coming soon: View machine startup and runtime logs using container machine logs")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                Stepper(value: $tailLines, in: 50...1000, step: 50) {
+                    Text(String.localizedStringWithFormat(NSLocalizedString("%lld lines", comment: "Number of log lines"), tailLines))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(width: 150)
 
-            Spacer()
+                Spacer()
+
+                Button(action: { Task { await loadLogs() } }) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .disabled(isLoading)
+                .help("Refresh")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color(nsColor: .controlBackgroundColor))
+
+            Divider()
+
+            if isLoading && logs.isEmpty {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let errorMessage {
+                ContentUnavailableView {
+                    Label("Unable to Load Logs", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(errorMessage)
+                } actions: {
+                    Button("Retry") { Task { await loadLogs() } }
+                }
+            } else {
+                ScrollView {
+                    Text(logs.isEmpty ? String(localized: "No logs available") : logs)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                }
+                .background(Color(nsColor: .textBackgroundColor))
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(20)
+        .task(id: machine.id) {
+            await loadLogs()
+        }
+        .onChange(of: showBootLogs) { _, _ in
+            Task { await loadLogs() }
+        }
+        .onChange(of: tailLines) { _, _ in
+            Task { await loadLogs() }
+        }
+    }
+
+    private func loadLogs() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            logs = try await viewModel.runtime.getMachineLogs(name: machine.name, tail: tailLines, boot: showBootLogs)
+        } catch {
+            logs = ""
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
     }
 }
 
